@@ -20,7 +20,7 @@ export async function productPanel(id,tab='basic',page=1){
     const data=await api(`/history?product_id=${id}&page=${page}&page_size=4`);
     content=`<div class="mini-list">${data.items.map(m=>`<div class="batch-row"><div><h3>${kinds[m.kind]||esc(m.kind)} · ${esc(m.reason)}</h3><p class="item-sub">${esc(m.created_at.slice(0,16).replace('T',' '))}</p><p class="item-sub">${['edit','create','mapping'].includes(m.kind)?'商品資料已更新':esc(m.before_value??'未知')+' → '+esc(m.after_value??'未知')}</p></div></div>`).join('')||'<p class="muted">尚無紀錄</p>'}</div>${pager(data,'detail-page')}`;
   }
-  dialog(p.name,tabs+content,'商品 · '+p.code);
+  dialog(p.name,`<div class="product-primary-actions"><button class="action-receive" data-action="operation" data-type="receive" data-id="${p.id}">進貨</button><button class="action-issue" data-action="operation" data-type="issue" data-id="${p.id}">店內賣出</button><button class="action-count" data-action="operation" data-type="count" data-id="${p.id}">盤點</button></div>`+tabs+content,'商品 · '+p.code);
   document.querySelectorAll('[data-detail-tab]').forEach(b=>b.onclick=()=>productPanel(id,b.dataset.detailTab));
   document.querySelectorAll('[data-action="detail-page"]').forEach(b=>b.onclick=()=>productPanel(id,tab,Number(b.dataset.page)));
   document.querySelectorAll('.batch-count').forEach(b=>b.onclick=()=>operation('count',id,Number(b.dataset.batch)));

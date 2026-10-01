@@ -1,7 +1,7 @@
 import {S,$,api,esc,dialog,formSubmit,closeDialog,refresh,toast,pager,money} from '../app.js';
 
 export async function dataManager(){
-  dialog('資料管理',`<div class="mini-list"><button id="begin-import">匯入原始 Excel</button><button id="catalog-map">確認價目表商品對應</button><button id="invoice-map">確認發票商品對應</button><button id="backup-now">立即備份</button></div><p class="muted">${S.meta.backup?.error?esc(S.meta.backup.error):S.meta.backup?'上次備份：'+esc(S.meta.backup.created_at.slice(0,16).replace('T',' ')):'尚無備份紀錄'}<br>電腦開啟且系統運行時，每天自動備份一次。</p>`,'店務設定');
+  dialog('設定',`<div class="mini-list"><button id="begin-import">匯入原始 Excel</button><button id="catalog-map">確認價目表商品對應</button><button id="invoice-map">確認發票商品對應</button><button id="backup-now">立即備份</button><button data-nav="history">完整操作紀錄</button><button data-nav="dashboard">庫存總覽</button></div><p class="muted">${S.meta.backup?.error?esc(S.meta.backup.error):S.meta.backup?'上次備份：'+esc(S.meta.backup.created_at.slice(0,16).replace('T',' ')):'尚無備份紀錄'}<br>電腦開啟且系統運行時，每天自動備份一次。</p>`,'店務設定');
   $('#begin-import').onclick=()=>importPreview();$('#catalog-map').onclick=()=>mappings('catalog');$('#invoice-map').onclick=()=>mappings('invoice');
   $('#backup-now').onclick=async e=>{const button=e.currentTarget;button.disabled=true;try{await api('/backups',{});await refresh();toast('備份完成');closeDialog(true);}catch(error){toast(error.message);}finally{button.disabled=false;}};
 }

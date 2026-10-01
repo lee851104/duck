@@ -1,8 +1,9 @@
+import {renderMerchant,renderExports,hasStocktakeDrafts,clearStocktakeDrafts} from './views/merchant.js';
 import {productPhoto} from './product-photo.js';
 import {operation, productPanel, newProduct} from './views/operations.js';
 import {dataManager, importPreview, mappings} from './views/data.js';
 
-export const S={view:'dashboard',page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
+export const S={view:'inventory',inventoryMode:'cards',savingCounts:false,page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
 export const $=s=>document.querySelector(s);
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const names={out:'缺貨',low:'低庫存',expiring:'即期',expired:'已過期',uncounted:'未盤點',normal:'正常',unmapped:'待對應'};
@@ -70,13 +71,7 @@ function searchToolbar(includeStatus=true){
   return `<div class="toolbar"><div class="search-box"><input id="search" aria-label="搜尋商品" placeholder="搜尋商品名稱或品號" value="${esc(S.q)}"></div><select id="category" aria-label="商品分類"><option value="">所有分類</option>${(S.view==='catalog'?S.meta.catalog_categories:S.meta.categories).map(c=>`<option ${c===S.category?'selected':''}>${esc(c)}</option>`).join('')}</select>${includeStatus?`<div class="filters">${[['','全部'],['restock','待補貨'],['expiring','即期'],['uncounted','未盤點']].map(([value,label])=>`<button data-action="filter" data-status="${value}" class="${S.status===value?'selected':''}">${label}</button>`).join('')}</div>`:''}</div>`;
 }
 
-async function inventory(seq){
-  const p=await api('/products?'+new URLSearchParams({q:S.q,status:S.status,category:S.category,page:S.page,page_size:size('inventory')}));
-  if(seq!==generation)return;
-  $('#main').innerHTML=heading('商品庫存',S.status&&names[S.status]?`目前查看：${names[S.status]}`:'搜尋商品，直接登記進貨、出貨與盤點。','<button data-action="new-product" class="primary">＋ 新增商品</button>')+searchToolbar()+
-    `<section class="panel table-panel"><div class="table-wrap">${p.items.length?`<table><thead><tr><th width="29%">商品</th><th width="14%">可售庫存</th><th class="hide-mobile" width="10%">售價</th><th class="hide-medium hide-mobile" width="14%">最近效期</th><th width="33%">操作</th></tr></thead><tbody>${p.items.map(x=>`<tr><td class="clickable" data-action="product" data-id="${x.id}"><div class="product-cell">${image(x)}<div><span class="item-name">${esc(x.name)}</span><div class="item-sub">${esc(x.code)} · ${esc(x.category)}</div></div></div></td><td><span class="amount">${qty(x)}</span><div class="item-sub">${badge(x.status)}</div></td><td class="hide-mobile">${money(x.price)}</td><td class="hide-medium hide-mobile">${x.nearest_expiry||'—'}</td><td class="mobile-actions"><div class="tiny-actions"><button class="action-receive" data-action="operation" data-type="receive" data-id="${x.id}">登記進貨</button><button class="action-issue" data-action="operation" data-type="issue" data-id="${x.id}">登記出貨</button><button class="action-count" data-action="operation" data-type="count" data-id="${x.id}">盤點庫存</button></div></td></tr>`).join('')}</tbody></table>`:empty('沒有符合的商品','換個關鍵字，或先匯入原始商品資料。')}</div>${pager(p)}</section>`;
-  bindSearch();
-}
+async function inventory(seq){await renderMerchant(()=>seq===generation);}
 
 let catalogItems=new Map();
 async function catalog(seq){
@@ -85,7 +80,7 @@ async function catalog(seq){
   S.page=p.page;
   catalogItems=new Map(p.items.map(c=>[String(c.id),c]));
   const count=p.photo_counts;
-  $('#main').innerHTML=heading('商品價目表','瀏覽所有價目項目；點照片可放大，向下捲動或換頁繼續查看。','<button data-action="mapping-catalog">整理商品對應</button><button class="primary" data-action="print">列印價目表</button>')+searchToolbar(false)+
+  $('#main').innerHTML=heading('商品價目表','瀏覽所有價目項目；點照片可放大，向下捲動或換頁繼續查看。','<button class="primary" data-action="print">列印價目表</button>')+searchToolbar(false)+
     `<div class="catalog-controls"><div class="photo-filters" role="group" aria-label="商品照片篩選">${[['','全部項目',count.all],['present','有照片',count.present],['missing','尚無照片',count.missing]].map(([value,label,n])=>`<button data-action="photo-filter" data-photos="${value}" aria-pressed="${S.photos===value}">${label}<span>${n}</span></button>`).join('')}</div><label class="page-size-label">每頁<select id="catalog-page-size" aria-label="每頁價目項目數">${[12,24,48].map(n=>`<option value="${n}" ${n===S.catalogSize?'selected':''}>${n} 項</option>`).join('')}</select></label></div>
     <section class="panel catalog-panel"><div class="catalog-grid">${p.items.map(c=>`<article class="catalog-card"><button class="catalog-photo" data-action="catalog-detail" data-id="${esc(c.id)}" aria-label="${c.image?'放大照片':'查看商品'}：${esc(c.name)}">${productPhoto(c.image,c.name,'catalog-card-image','/media/')}${c.image?'<span class="photo-zoom">放大照片</span>':''}</button><div class="catalog-info"><p class="catalog-brand">${esc(c.brand||c.category)}</p><h3>${esc(c.name)}</h3><p class="catalog-spec">${esc(c.specification||c.unit||'規格待確認')}</p><div class="catalog-price-row"><p class="price">${money(c.price)}</p>${badge(c.status)}</div></div><button class="catalog-detail-button" data-action="catalog-detail" data-id="${esc(c.id)}">查看詳情 <span aria-hidden="true">↗</span></button></article>`).join('')||empty('沒有符合的價目項目','試試其他分類、照片篩選或關鍵字。')}</div>${pager(p)}</section>`;
   bindSearch();
@@ -100,7 +95,7 @@ function catalogDetail(id){
 async function history(seq){
   const p=await api('/history?'+new URLSearchParams({page:S.page,page_size:size('history'),kind:S.kind,from:S.from,to:S.to,product_id:S.productId}));
   if(seq!==generation)return;
-  $('#main').innerHTML=heading('異動紀錄','每筆進出貨、盤點與改價，都有跡可查。','<button data-action="mapping-invoice">發票商品對應</button><button class="primary" data-action="invoice-export">匯出發票商品</button>')+
+  $('#main').innerHTML=heading('異動紀錄','每筆進出貨、盤點與改價，都有跡可查。','')+
     `<div id="export-state" class="export-state">${S.meta.export.pending?(S.meta.export.last_export?'商品資料已變動，需重新匯出發票商品。':'尚未匯出發票商品。'):'發票商品資料與上次匯出一致。'}${S.meta.export.issues.length?' 有 '+S.meta.export.issues.length+' 筆待確認。':''}</div><div class="toolbar"><select id="history-product" aria-label="篩選商品"><option value="">所有商品</option>${S.meta.products.map(p=>`<option value="${p.id}" ${String(p.id)===String(S.productId)?'selected':''}>${esc(p.name)} · ${esc(p.code)}</option>`).join('')}</select><select id="history-kind" aria-label="異動類型"><option value="">所有異動</option>${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${S.kind===k?'selected':''}>${v}</option>`).join('')}</select><input type="date" id="history-from" aria-label="開始日期" value="${esc(S.from)}"><input type="date" id="history-to" aria-label="結束日期" value="${esc(S.to)}"></div>
     <section class="panel table-panel"><div class="table-wrap"><table class="history-table"><thead><tr><th width="30%">商品</th><th width="15%">操作</th><th width="20%">變更</th><th width="22%">時間／操作人</th><th width="13%">更正</th></tr></thead><tbody>${p.items.map(m=>`<tr><td><span class="item-name">${esc(m.name)}</span><div class="item-sub">${esc(m.reason)}${m.batch_id?' · 批次 #'+m.batch_id:''}</div></td><td>${kinds[m.kind]||esc(m.kind)}</td><td>${['edit','mapping','create'].includes(m.kind)?'資料更新':`${esc(m.before_value??'未知')} → ${esc(m.after_value??'未知')}`}</td><td class="hide-mobile"><small>${esc(m.created_at.slice(5,16).replace('T',' '))} · 店主</small></td><td>${['receive','issue','return'].includes(m.kind)?`<button class="text-button danger" data-action="reverse" data-id="${m.id}">沖銷</button>`:'—'}</td></tr>`).join('')}</tbody></table>${!p.items.length?empty('尚無符合的異動紀錄','完成進貨、出貨或盤點後，紀錄會顯示在這裡。'):''}</div>${pager(p)}</section>`;
   for(const [id,key] of [['history-product','productId'],['history-kind','kind'],['history-from','from'],['history-to','to']])$('#'+id).onchange=async e=>{S[key]=e.target.value;S.page=1;await render();};
@@ -108,11 +103,12 @@ async function history(seq){
 
 let generation=0;
 export async function render(){
+  if(S.savingCounts)return;
   const seq=++generation;
   $('#main').dataset.view=S.view;
   document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===S.view));
   try{
-    await ({dashboard,inventory,catalog,history}[S.view]||dashboard)(seq);
+    await ({dashboard,inventory,catalog,history,exports:renderExports}[S.view]||inventory)(seq);
     if(seq!==generation)return;
 
   }
@@ -136,7 +132,8 @@ function showIssues(issues,page=1){
 }
 
 document.addEventListener('click',async event=>{
-  const nav=event.target.closest('[data-nav]');if(nav){await navigate(nav.dataset.nav);return;}
+  if(S.savingCounts&&event.target.closest('[data-nav],[data-action]')){event.preventDefault();return;}
+  const nav=event.target.closest('[data-nav]');if(nav){if($('#dialog').open){if(S.dialogDirty&&!confirm('尚未儲存，確定離開？'))return;closeDialog(true);}await navigate(nav.dataset.nav);return;}
   const b=event.target.closest('[data-action]');if(!b||b.disabled)return;
   try{switch(b.dataset.action){
     case 'page':S.page=Number(b.dataset.page);await render();$('#main').scrollTop=0;break;
@@ -144,7 +141,7 @@ document.addEventListener('click',async event=>{
     case 'filter':S.status=b.dataset.status;S.page=1;await render();break;
     case 'filter-dashboard':await navigate('inventory',{status:b.dataset.status});break;
     case 'product':await productPanel(Number(b.dataset.id));break;
-    case 'operation':await operation(b.dataset.type,Number(b.dataset.id));break;
+    case 'operation':await operation(b.dataset.type,Number(b.dataset.id),b.dataset.batch?Number(b.dataset.batch):null);break;
     case 'choose-operation':await operation(b.dataset.type);break;
     case 'new-product':await newProduct();break;
     case 'catalog-detail':catalogDetail(b.dataset.id);break;
@@ -162,8 +159,8 @@ document.addEventListener('click',async event=>{
 
 $('#dialog-close').onclick=()=>closeDialog();$('#dialog').addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
 $('#dialog-body').addEventListener('input',()=>S.dialogDirty=true);
-$('#settings').onclick=()=>dataManager();
-$('#logout').onclick=async()=>{const state=await api('/logout',{});S.csrf=state.csrf;showAuth(state);};
+$('#settings').onclick=()=>{if(!S.savingCounts)dataManager();};
+$('#logout').onclick=async()=>{if(S.savingCounts)return;if(hasStocktakeDrafts()&&!confirm('盤點尚未儲存，確定登出並捨棄已填數量？'))return;const state=await api('/logout',{});S.csrf=state.csrf;clearStocktakeDrafts();showAuth(state);};
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(S.meta)render();},180);});
 
 function showAuth(state){$('#app').hidden=true;$('#auth-screen').hidden=false;$('#auth-title').textContent=state.setup_required?'建立管理密碼':'登入工作台';$('#auth-copy').textContent=state.setup_required?'第一次使用，設定至少 10 個字元的密碼。':'輸入密碼，開始今天的庫存管理。';$('#password').value='';$('#password').minLength=state.setup_required?10:1;$('#password').autocomplete=state.setup_required?'new-password':'current-password';

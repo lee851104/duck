@@ -90,21 +90,52 @@ def issue(conn, command, actor_id, today):
     return mutate(conn, command.get('request_id'), {'kind': 'issue', **command}, apply)
 
 
+def _apply_count_stock(conn, command, actor_id):
+    b = checked_batch(conn, command.get('batch_id'), command.get('expected_version'))
+    p = get_product(conn, b['product_id'])
+    qty = quantity_for(p, command.get('actual_quantity'))
+    expiry = valid_date(command['expires_on']) if 'expires_on' in command else b['expires_on']
+    saleable = b['saleable']
+    if 'saleable_confirmed' in command:
+        saleable = int(command['saleable_confirmed'] is True)
+    protect_reserved(conn,b['id'],qty,expiry,saleable)
+    conn.execute('UPDATE batches SET quantity=?,expires_on=?,saleable=?,version=version+1 WHERE id=?',
+                 (decimal_text(qty), expiry, saleable, b['id']))
+    mid = record(conn, p['id'], b['id'], 'count', '盤點調整', b['quantity'], decimal_text(qty), actor_id)
+    return {'batch_id': b['id'], 'movement_ids': [mid]}
+
+
 def count_stock(conn, command, actor_id):
+    return mutate(conn, command.get('request_id'), {'kind': 'count', **command},
+                  lambda: _apply_count_stock(conn, command, actor_id))
+
+
+def bulk_count_stock(conn, command, actor_id):
+    items = command.get('items')
+    if not isinstance(items, list) or not 1 <= len(items) <= 200:
+        raise Problem('請填入 1 至 200 筆盤點數量')
+    seen = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise Problem('盤點列格式不正確')
+        bid = item.get('batch_id')
+        if type(bid) is not int or bid < 1 or bid in seen:
+            raise Problem('盤點批次無效或重複')
+        seen.add(bid)
+        if set(item) - {'batch_id', 'actual_quantity', 'expected_version'}:
+            raise Problem('集中盤點只調整數量，其他資料請至商品明細修改')
+
     def apply():
-        b = checked_batch(conn, command.get('batch_id'), command.get('expected_version'))
-        p = get_product(conn, b['product_id'])
-        qty = quantity_for(p, command.get('actual_quantity'))
-        expiry = valid_date(command['expires_on']) if 'expires_on' in command else b['expires_on']
-        saleable = b['saleable']
-        if 'saleable_confirmed' in command:
-            saleable = int(command['saleable_confirmed'] is True)
-        protect_reserved(conn,b['id'],qty,expiry,saleable)
-        conn.execute('UPDATE batches SET quantity=?,expires_on=?,saleable=?,version=version+1 WHERE id=?',
-                     (decimal_text(qty), expiry, saleable, b['id']))
-        mid = record(conn, p['id'], b['id'], 'count', '盤點調整', b['quantity'], decimal_text(qty), actor_id)
-        return {'batch_id': b['id'], 'movement_ids': [mid]}
-    return mutate(conn, command.get('request_id'), {'kind': 'count', **command}, apply)
+        results = []
+        for item in items:
+            try:
+                results.append(_apply_count_stock(conn, item, actor_id))
+            except Problem as error:
+                raise Problem(error.message, code=error.code, status=error.status,
+                              fields={**error.fields, 'batch_id': item['batch_id']}) from None
+        return {'results': results, 'movement_ids': [mid for row in results for mid in row['movement_ids']]}
+
+    return mutate(conn, command.get('request_id'), {'kind': 'bulk_count', **command}, apply)
 
 
 def reverse_movement(conn, movement_id, reason, request_id, actor_id):

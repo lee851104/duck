@@ -135,6 +135,13 @@ class ShopTest(unittest.TestCase):
     def test_reservations_block_walkin_count_and_expiry_change(self):
         a,_=self.place(self.selection(quantity=4));self.transition(a.get_json()['id'],'confirm')
         p=self.products['C19002'];b=self.conn.execute('SELECT * FROM batches WHERE id=?',(p['batch'],)).fetchone()
+        other=self.products['C15001']
+        other_batch=self.conn.execute('SELECT * FROM batches WHERE id=?',(other['batch'],)).fetchone()
+        response=self.admin.post('/api/counts/bulk',json={'request_id':str(uuid4()),'items':[
+            {'batch_id':other_batch['id'],'expected_version':other_batch['version'],'actual_quantity':'1'},
+            {'batch_id':b['id'],'expected_version':b['version'],'actual_quantity':'2'}]},headers=self.headers)
+        self.assertEqual(response.status_code,409)
+        self.assertEqual(self.conn.execute('SELECT quantity FROM batches WHERE id=?',(other_batch['id'],)).fetchone()[0],'5')
         with self.assertRaises(Problem):
             issue(self.conn,{'product_id':p['id'],'reason':'銷售','request_id':str(uuid4()),
                             'allocations':[{'batch_id':b['id'],'quantity':'2','expected_version':b['version']}]},1,date(2026,10,1))

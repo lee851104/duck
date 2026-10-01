@@ -11,7 +11,7 @@ from .dashboard import get_dashboard, list_products, products_with_stock
 from .db import get_db
 from .exports import build_invoice_xlsx, export_state
 from .imports import commit_import, preview_import
-from .inventory import count_stock, get_product, issue, receive, return_stock, reverse_movement
+from .inventory import bulk_count_stock, count_stock, get_product, issue, receive, return_stock, reverse_movement
 from .products import update_product
 from .catalog_order import category_key, product_key
 
@@ -83,6 +83,11 @@ def issues():
 @api.post('/api/counts')
 def counts():
     return jsonify(count_stock(get_db(), request.get_json(), session['user']))
+
+
+@api.post('/api/counts/bulk')
+def bulk_counts():
+    return jsonify(bulk_count_stock(get_db(), request.get_json(), session['user']))
 
 
 @api.post('/api/returns')
