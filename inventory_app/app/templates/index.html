@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#285e4d"><title>菜騎鴨 · 庫存管理</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/usability.css">
+  <script type="module" src="/static/app.js"></script>
+</head>
+<body>
+  <div id="app" class="app-shell" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="#dashboard"><span class="brand-mark">菜</span><span>菜騎鴨<small>店務管理</small></span></a>
+      <div class="nav-label">工作空間</div>
+      <nav aria-label="主要功能">
+        <button data-nav="dashboard"><span aria-hidden="true">▦</span>總覽</button>
+        <button data-nav="inventory"><span aria-hidden="true">▤</span>庫存</button>
+        <button data-nav="catalog"><span aria-hidden="true">▧</span>價目表</button>
+        <button data-nav="history"><span aria-hidden="true">◷</span>紀錄</button>
+      </nav>
+      <div class="sidebar-bottom"><span class="local-dot"></span> 本機資料保存<button id="settings" class="text-button">資料管理</button></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><span class="top-title">店內工作台</span><span id="demo-label" class="badge warning" hidden>示範資料</span><div class="top-actions"><a class="text-button" href="/shop/manage">客人訂單</a><a class="text-button" href="/shop">客人選購</a><span id="today"></span><button id="logout" class="text-button">登出</button><span class="avatar">店</span></div></header>
+      <main id="main" tabindex="-1" aria-live="polite"></main>
+      <footer class="app-footer"><span id="save-status">資料保存在這台電腦</span><span>菜騎鴨 · 輕鬆管好每一份庫存</span></footer>
+    </div>
+  </div>
+  <section id="auth-screen" class="auth-screen" hidden>
+    <form id="auth-form" class="auth-card">
+      <span class="brand-mark">菜</span><p class="eyebrow">菜騎鴨 · 店務管理</p><h1 id="auth-title">登入工作台</h1>
+      <p id="auth-copy" class="muted">輸入密碼，開始今天的庫存管理。</p>
+      <label>管理密碼<input id="password" type="password" autocomplete="current-password" required></label>
+      <p id="auth-error" class="error" role="alert"></p><button class="primary" type="submit">進入工作台</button>
+    </form>
+  </section>
+  <dialog id="dialog"><div class="dialog-heading"><div><p id="dialog-eyebrow" class="eyebrow">商品管理</p><h2 id="dialog-title"></h2></div><button id="dialog-close" class="icon-button" aria-label="關閉">×</button></div><div id="dialog-body"></div></dialog>
+  <div id="toast" role="status" hidden></div>
+</body>
+</html>

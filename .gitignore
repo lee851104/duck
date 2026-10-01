@@ -1,0 +1,40 @@
+# Original business workbooks stay local.
+/原始資料/
+*.xlsx
+*.xls
+~$*
+
+# Runtime data, credentials and backups
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+**/data/
+**/backups/
+**/exports/
+
+# Local environments and generated test artifacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.qa/
+*.log
+node_modules/
+.DS_Store
+Thumbs.db
+
+# Local assistant context; not part of the application
+.codex/
+.agents/
+/CLAUDE.md

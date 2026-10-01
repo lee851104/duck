@@ -1,0 +1,56 @@
+# SDD ledger — plan: D:/duck/docs/superpowers/plans/2026-10-01-inventory-system.md
+
+2026-10-01 UI/UX follow-up: user explicitly permits scrolling and paging within the single-page app. Supersedes original viewport-fit row reduction. Fixed navigation with scrollable main; 10 inventory/history rows; catalogue 12/24/48 cards, contain-fit photos, lazy loading, present/missing filters with counts, and keyboard-accessible photo/detail dialogs. Neutral missing-photo labels preserve absent source data. Receive green, issue blue, count amber; danger red, text labels and visible focus. Unit/API regression first failed at old 10-row catalogue cap then passed. Suite 49/49 (17.094s). Browser gallery desktop/mobile/tablet passed (1366×768,390×844,768×700); desktop/mobile four-view and receive/count/issue workflow checks passed, no JS errors/horizontal overflow. 200% dialog text validation and submit passed. Source photo/card associations not re-guessed. No real inventory transactions during UI verification; isolated QA databases only.
+
+2026-10-01 source-data follow-up: user explicitly authorized real Excel normalization/import and selected inventory workbook as price authority. Imported 173 products / 176 batches, all 186 catalog cards / 96 invoice rows. 56 catalog links, 14 invoice links, 9 fixed vegetable price tiers; 130 catalog and 73 invoice mappings remain unresolved due missing/contradictory identity or packaging. Full source/collision/price audit is under data/normalization; original Excel hashes unchanged. Before/after backups created. Every imported batch reconciled for quantity, cost and dates; SQLite FK/integrity and authenticated read-only API checks passed. See docs/data-normalization.md.
+
+Same follow-up: source comparison demonstrated invoice codes are a separate namespace. Export tests first failed for preserving external identifiers; fixed one line to retain invoice_items.code while linking current name/price. Final suite 48/48 passed (13.480 seconds). No UI layout change. Cloud Run + Supabase chosen by user with free-tier preference and billing acceptance; design saved at D:/duck/docs/superpowers/specs/2026-10-01-cloud-deployment-design.md. PostgreSQL/storage adaptation and cloud deployment have NOT been implemented; no external projects created or credentials obtained.
+
+Spec: D:/duck/docs/superpowers/specs/2026-10-01-inventory-design.md
+
+Execution: inline, authorized 2026-10-01. Tasks 1–8 complete.
+
+Current state: all eight tasks implemented; final suite 47/47 green, four browser acceptance scripts green, local startup HTTP 200. Verification details: docs/verification.md.
+
+Task 1: complete — five app/auth tests passed after initial missing-app RED. Source code only; UI and startup remain later tasks.
+Task 2: complete — thirteen inventory tests passed, whole suite 18/18 at this stage. First run found an unrequested restriction on recording expired receipts. Removed it: expired physical stock must remain recordable; sales still reject it.
+Task 3: import preview/commit tests passed (4); original files yielded 176 rows, 186 cards, 96 invoice items and 169 card images. A source fractional-cost regression was then added RED→GREEN to preserve formula results rounded to six decimals.
+Tasks 4/5/6/7: implementations present, API tests 7/7 and export/backup tests 9/9 passed. Browser and integrated acceptance pending.
+Ruling: Commands use validated dictionaries rather than separate dataclasses because the API and forms already share this shape; common validators provide type/number checks. Cost: less static typing, covered at runtime by mutation tests.
+Ruling: Cache source monetary values to six decimal places on import; original Excel formulas include recurring fractions. Retain original files for full precision. Cost: sub-micro-unit rounding; prevents valid costs being lost as missing values.
+Ruling: Co-locate UI views into app.js (overview/inventory/catalog/history), operations.js and data.js instead of one module per page; shared rendering is small and coupled. Cost: larger primary JS file, no behavioral change.
+
+Final review: fresh read-only reviewer /root/final_review (gpt-6-astra), 41 tests green at review time. Four Important findings, no Critical. One repair pass:
+- New products omitted when source cards existed: regression test RED→GREEN; unmatched products now get generated catalog entries.
+- Unknown stock not shown on catalog/print: browser_review.cjs RED→GREEN; explicit 未盤點 label in both outputs.
+- Invoice pending state/details hidden: browser_review.cjs RED→GREEN; status and paged issue list now visible.
+- Non-collision import issues hidden: unit + browser regression RED→GREEN; every issue retained/displayed with source and original value, acknowledgement required before preserving unknown inputs.
+Final: Ruling: Reviewer classified category filtering and history product/batch lookup as Minor; regraded Important because these are core operator lookup functions. Both fixed in the same pass. Cost: two extra UI controls, covered by API/browser regressions.
+Final: Ruling: Browser resize at 390×450 tests form access with reduced space, not a physical phone keyboard. Normal 390×844 and 1366×768 views verified. Physical mobile hardware remains unverified; cost: device-specific behavior may differ.
+Final: Ruling: Original media files are preserved and extracted by drawing anchors; no exhaustive visual verification of every photo/card pair. User confirms card/product mappings. Cost: some source image/card placements may need adjustment.
+Final: Ruling: Backup restore/invalid paths/missing-source failures tested, not physical disk exhaustion or power loss. Atomic archive rename avoids promoting partial files. Cost: OS/hardware fault behavior not fully simulated.
+Additional residual checks in same repair pass: backup retry button had an expired event.currentTarget after await; browser failure test RED→GREEN. Expected issue total now must match batch allocations; atomic rollback regression RED→GREEN.
+Ruling: Added an explicit 'new invoice item' form for newly created products; category/tax must be supplied by the operator, never guessed. Cost: one optional setup step; duplicate additions are idempotent and tested RED→GREEN.
+Deferred minors: none after regrading the two functional lookup findings.
+
+Task 3: complete — real source preview and seven import tests, including explicit unknown acknowledgement and source-value preservation.
+Task 4: complete — 8/8 responsive view combinations no root scrolling/clipping; read failure shows retry.
+Task 5: complete — actual browser receipt/count/issue flows; saved quantity, missing expiry validation, preserved inputs; service quantities and retries covered.
+Task 6: complete — new/existing catalog and invoice items, seven-column values-only XLSX, preserved identifiers/tax, pending export and issue details, print unknown state tested.
+Task 7: complete — backup/restore tests green, daily worker installed, startup script produced healthy service.
+Task 8: complete — final unittest suite 47/47 (17.067 seconds), browser_check/extended/review all exit 0, independent reviewer findings addressed by RED→GREEN regressions. Real 200% font settings/physical mobile hardware and all source images not exhaustively visually verified, explicitly noted in verification.md.
+Final: no Git integration step applies. Preserve code, docs and original source files in place; no branch/PR created, no source Excel edits, no cloud deployment.
+Additional final accessibility verification: browser_font.cjs doubled computed dialog font sizes at 390×844; validation and successful submit remained usable. This supplements the earlier small-viewport keyboard-space simulation; physical devices/native browser zoom remain outside measured coverage.
+
+Ruling: No Git repository exists; use the approved separate inventory_app folder and retain this ledger instead of Git-dependent workspace scripts. Original Excel files remain read-only. Cost: no Git commit history until the user adopts Git.
+
+Pre-flight: Tasks 1→2 database/command interfaces; 2→4/5 query and mutation interfaces; 3→5 import preview/resolution; 2→6 price revisions; 1→7 backup snapshot. No contradictory interfaces found.
+
+Source SHA256:
+- 庫存: 103EA3B1A568BF142B6B9D57F61CBF93C300C3447673AF0BFB958EC2B58A9531
+- 價目: 08A92110275956422B3E29DD5F3A5F44F6B608D9C5BA3F2DBF550885080534D5
+- 發票: A3FB7B3DDE07B8D99C5404A1BDEBA06C79CA14A456DF619D4BA6056F01E733A3
+
+2026-10-01 customer shopping: implemented /shop and /shop/manage, 173 published source products, 3 source-backed recipes, optional condiments, guest pickup orders, atomic reservations and inventory safeguards. 63/63 unit/API tests; isolated browser journey and recovery-after-lost-response passed at desktop/mobile/tablet sizes. Real DB migrated after verified backup/restore; product/batch/movement/account hashes unchanged, zero real orders, accepting orders disabled. Detailed ledger: docs/customer-shopping-progress.md.
+
+2026-10-01 photo follow-up: visually reviewed 60 candidates and all 55 existing product photos. Applied 58 photo-only links, held back two milk images with 24-pack labels; 113 total photos, 60 missing/unconfirmed. Fixed original Excel overlay selection from backmost to frontmost (regression RED→GREEN); corrected 3 source cards and rock-sugar product image. Added recipe ingredient thumbnails with missing-photo fallback. 64/64 tests passed (31.660s); production read-only browser verified all 113 image URLs decode, recipe image counts 2/2/3, desktop/mobile no dialog overflow, no JS errors. Before/after DB comparison confirmed price/stock/units/specifications/order/account/catalog SKU mappings unchanged; photo audit movements recorded.

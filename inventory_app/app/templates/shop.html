@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#faf8f2"><title>菜騎鴨｜今天想吃什麼？</title><link rel="stylesheet" href="/static/shop.css"><script type="module" src="/static/shop.js"></script></head>
+<body>
+ <header class="shop-header"><a class="shop-brand" href="/shop"><span class="brand-icon">菜</span><span>菜騎鴨<small>把好好吃飯，變簡單。</small></span></a><nav class="desktop-nav" aria-label="選購功能"><button data-view="recipes" class="active">今天煮什麼</button><button data-view="products">全部商品</button></nav><div class="header-actions"><button id="my-orders" class="quiet">我的訂單</button><button data-view="cart" class="cart-pill">購物車 <span class="cart-count">0</span></button></div></header>
+ <div id="demo-banner" class="demo-banner" hidden>測試模式 · 不會建立正式店家訂單</div>
+ <main id="shop-main" tabindex="-1"><p class="loading">正在準備今天的菜單…</p></main>
+ <footer class="shop-footer">菜騎鴨 · 食材按原包裝販售 · 店家確認後到店取貨付款</footer>
+ <nav class="mobile-nav" aria-label="手機選購功能"><button data-view="recipes" class="active"><span aria-hidden="true">🍽️</span>今天煮什麼</button><button data-view="products"><span aria-hidden="true">▦</span>全部商品</button><button data-view="cart"><span aria-hidden="true">🛒</span>購物車 <span class="cart-count">0</span></button></nav>
+ <dialog id="shop-dialog"><header class="modal-header"><h2 id="modal-title"></h2><button id="close-modal" class="close" aria-label="關閉">×</button></header><div id="modal-content"></div></dialog>
+ <div id="shop-toast" class="toast" role="status" hidden></div>
+</body></html>

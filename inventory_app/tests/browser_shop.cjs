@@ -1,0 +1,60 @@
+const {chromium}=require('C:/Users/咖波/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const assert=require('node:assert/strict');
+const base='http://127.0.0.1:8767';
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+ try{
+ const context=await browser.newContext({viewport:{width:1366,height:900}}),page=await context.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ const clickView=async view=>{await page.locator(`[data-view="${view}"]:visible`).first().click();};
+ const noOverflow=async p=>assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'horizontal overflow');
+ await page.goto(base+'/shop');await page.locator('.recipe-card').nth(2).waitFor();
+ assert.equal(await page.locator('.recipe-card').count(),3);
+ await page.locator('.recipe-art').evaluateAll(imgs=>Promise.all(imgs.map(i=>i.decode())));
+ await noOverflow(page);await page.screenshot({path:'.qa/shop-desktop.png',fullPage:true});
+ await page.locator('.recipe-card').filter({hasText:'照燒雞腿'}).locator('button').click();
+ assert.equal(await page.locator('#recipe-total').innerText(),'$260');
+ await page.locator('#omit-all').click();assert.equal(await page.locator('#recipe-total').innerText(),'$150');
+ await page.locator('#add-recipe').click();
+ await clickView('products');await page.locator('#product-search').fill('甘露醬油');
+ await page.waitForFunction(()=>document.querySelectorAll('.product-card').length===1);
+ await page.locator('[data-action="add-product"]').click();
+ await clickView('cart');await page.locator('#checkout-form').waitFor();
+ const lines=page.locator('.cart-line');assert.equal(await lines.count(),2);
+ assert.match(await lines.nth(0).innerText(),/甘露醬油[\s\S]*\$55/);
+ assert.match(await lines.nth(1).innerText(),/照燒雞腿[\s\S]*\$150/);
+ assert.equal(await page.locator('.checkout .total .price').innerText(),'$205');
+ const session=await (await context.request.get(base+'/api/shop/session')).json();
+ const next=new Date(session.today+'T12:00:00Z');next.setUTCDate(next.getUTCDate()+1);
+ await page.locator('[name="name"]').fill('瀏覽器測試');await page.locator('[name="phone"]').fill('0912345678');
+ await page.locator('[name="pickup_date"]').fill(next.toISOString().slice(0,10));
+ await page.locator('[name="pickup_slot"]').selectOption('10:00–12:00');
+ let accepted;
+ await page.route('**/api/shop/orders',async route=>{const response=await route.fetch();assert.equal(response.status(),201);accepted=await response.json();await route.abort('failed');},{times:1});
+ await page.locator('#checkout-form [type="submit"]').click();await page.locator('#checkout-error').waitFor({state:'visible'});
+ await page.reload();await page.locator('.order-card h1').waitFor();const order=accepted;assert(page.url().includes(accepted.token),'refresh recovers accepted order');
+ await page.locator('.order-card h1').waitFor();assert.equal(await page.locator('.order-card h1').innerText(),'待店家確認');
+ const adminContext=await browser.newContext({viewport:{width:1366,height:900}}),admin=await adminContext.newPage();admin.on('pageerror',e=>errors.push(e.message));
+ await admin.goto(base+'/');await admin.locator('#password').fill('qa-local-testing-only');await admin.locator('#auth-form button').click();await admin.locator('#auth-screen').waitFor({state:'hidden'});
+ await admin.goto(base+'/shop/manage');await admin.locator(`[data-order-id="${order.id}"]`).waitFor();
+ await admin.locator(`[data-transition="confirm"][data-id="${order.id}"]`).click();await admin.locator(`[data-order-id="${order.id}"]`).waitFor({state:'detached'});
+ await admin.locator('#order-filter').selectOption('confirmed');await admin.locator(`[data-transition="ready"][data-id="${order.id}"]`).click();await admin.locator(`[data-order-id="${order.id}"]`).waitFor({state:'detached'});
+ await admin.locator('#order-filter').selectOption('ready');admin.once('dialog',d=>d.accept());await admin.locator(`[data-transition="pickup"][data-id="${order.id}"]`).click();await admin.locator(`[data-order-id="${order.id}"]`).waitFor({state:'detached'});
+ await page.locator('#refresh-order').click();await page.waitForFunction(()=>document.querySelector('.order-card h1')?.textContent==='已取貨付款');
+ await admin.locator('[data-tab="recipes"]').click();await admin.locator('[data-edit-recipe]').first().click();await admin.locator('#recipe-form').waitFor();
+ await admin.locator('#recipe-form [name="description"]').fill('測試後台編輯，原價組合。');await admin.locator('#recipe-form [type="submit"]').click();await admin.locator('#shop-dialog').waitFor({state:'hidden'});
+ await admin.locator('[data-tab="settings"]').click();await admin.locator('#settings-form').waitFor();await noOverflow(admin);
+ for(const width of [390,768]){
+  await page.setViewportSize({width,height:844});await page.goto(base+'/shop');await page.locator('.recipe-card').nth(2).waitFor();await noOverflow(page);
+  await page.screenshot({path:`.qa/shop-${width}.png`,fullPage:true});
+  await page.locator('.recipe-card').filter({hasText:'照燒雞腿'}).locator('button').click();await noOverflow(page);
+  assert(await page.locator('#modal-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await page.keyboard.press('Escape');
+  await clickView('products');await page.locator('.product-card').first().waitFor();await noOverflow(page);
+  await page.locator('.product-photo').evaluateAll(imgs=>Promise.all(imgs.map(i=>i.decode())));
+  await admin.setViewportSize({width,height:844});await admin.goto(base+'/shop/manage');await admin.locator('#order-filter').waitFor();await noOverflow(admin);
+  await admin.locator('[data-tab="recipes"]').click();await admin.locator('[data-edit-recipe]').first().click();await admin.locator('#recipe-form').waitFor();await noOverflow(admin);assert(await admin.locator('#modal-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await admin.keyboard.press('Escape');
+  await admin.goto(base+'/');await admin.locator('#main .page-heading, #main h1').first().waitFor();await noOverflow(admin);
+ }
+ assert.deepEqual(errors,[]);console.log('PASS: 3 recipes, omit condiments, mixed cart prices, guest submit -> admin confirm/ready/pickup, recipe edit, 3 viewport layouts, source photos; no JS errors.');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1);});
