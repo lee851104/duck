@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
  const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
  try{
  const page=await browser.newPage({viewport:{width:1366,height:900}});
- await page.goto('http://127.0.0.1:8768/');await page.locator('#password').fill('merchant-test-only');await page.locator('#auth-form button').click();await page.locator('.merchant-card').first().waitFor();
+ await page.goto('http://127.0.0.1:8768/');await page.locator('#password').fill('merchant-test-only');await page.locator('#auth-form button').click();await page.locator('[data-inventory-mode="cards"]').click();await page.locator('.merchant-card').first().waitFor();
  await page.route('**/api/products?*',async route=>{
   const n=Number(new URL(route.request().url()).searchParams.get('page')||1);
   const items=Array.from({length:10},(_,i)=>{const id=(n-1)*10+i+1;return {id,code:'T'+id,name:'上限測試'+id,unit:'包',price:'10',category:'A冷凍食品',quantity:'1',batches:[{id,version:1,quantity:'1',reserved_quantity:'0',expires_on:'2027-12-31',saleable:true}]};});

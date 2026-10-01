@@ -125,7 +125,7 @@ def catalog_rows():
         p = ps.get(c['product_id'])
         c['linked'] = p is not None
         c['price'] = p['price'] if p and c['pricing_mode']=='product' else c['original_price']
-        c['status'] = p['status'] if p else 'unmapped'
+        c['status'] = p['status'] if p else ('independent' if c['independent'] else 'unmapped')
         c['category'] = p['category'] if p else c['source'].split('!')[0]
         c['unit'] = p['unit'] if p else ''
     linked_ids = {c['product_id'] for c in cards if c['product_id']}
@@ -157,7 +157,7 @@ def mappings(kind):
     table = 'catalog_cards' if kind=='catalog' else 'invoice_items'
     rows = [dict(r) for r in get_db().execute(f'SELECT * FROM {table} ORDER BY id')]
     if request.args.get('pending') == '1':
-        rows = [r for r in rows if not r['product_id'] and not r.get('fixed')]
+        rows = [r for r in rows if not r['product_id'] and not r.get('fixed') and not r.get('independent')]
     return jsonify(paginate(rows, *page_args(5)))
 
 
@@ -177,7 +177,9 @@ def set_mapping(kind, mid):
             mode = body.get('pricing_mode','fixed')
             if mode not in {'fixed','product'}:
                 raise Problem('價格方式不正確')
-            conn.execute('UPDATE catalog_cards SET product_id=?,pricing_mode=? WHERE id=?',(pid,mode,mid))
+            independent = int(not pid and body.get('independent') is True)
+            conn.execute('UPDATE catalog_cards SET product_id=?,pricing_mode=?,independent=? WHERE id=?',
+                         (pid,mode,independent,mid))
             if p and old['image']:
                 conn.execute('UPDATE products SET image=?,version=version+1,updated_at=? WHERE id=?',(old['image'],now(),pid))
         else:

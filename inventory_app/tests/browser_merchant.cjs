@@ -8,6 +8,8 @@ const assert=require('node:assert/strict');
  await page.goto('http://127.0.0.1:8768/');
  await page.locator('#password').fill('merchant-test-only');
  await page.locator('#auth-form button').click();
+ await page.locator('.stocktake-card').first().waitFor({timeout:6000});
+ await page.locator('[data-inventory-mode="cards"]').click();
  await page.locator('.merchant-card').first().waitFor({timeout:6000});
  assert.equal(await page.locator('#main').getAttribute('data-view'),'inventory');
  assert.equal(await page.locator('.merchant-card').count(),10);

@@ -38,3 +38,6 @@ Thumbs.db
 .codex/
 .agents/
 /CLAUDE.md
+
+# Offline owner review packets contain real business data.
+/output/owner-review/

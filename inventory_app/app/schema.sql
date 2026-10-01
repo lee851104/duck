@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS imports(
 CREATE TABLE IF NOT EXISTS catalog_cards(
  id INTEGER PRIMARY KEY, source TEXT NOT NULL UNIQUE, brand TEXT, name TEXT, specification TEXT,
  original_price TEXT, image TEXT, product_id INTEGER REFERENCES products(id),
- pricing_mode TEXT NOT NULL DEFAULT 'fixed');
+ pricing_mode TEXT NOT NULL DEFAULT 'fixed', independent INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS invoice_items(
  id INTEGER PRIMARY KEY, source TEXT UNIQUE NOT NULL, category TEXT, code TEXT, name TEXT,
  price TEXT, unit TEXT, tax INTEGER, kind INTEGER,

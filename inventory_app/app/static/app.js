@@ -3,10 +3,10 @@ import {productPhoto} from './product-photo.js';
 import {operation, productPanel, newProduct} from './views/operations.js';
 import {dataManager, importPreview, mappings} from './views/data.js';
 
-export const S={view:'inventory',inventoryMode:'cards',savingCounts:false,page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
+export const S={view:'inventory',inventoryMode:'table',savingCounts:false,page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
 export const $=s=>document.querySelector(s);
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const names={out:'缺貨',low:'低庫存',expiring:'即期',expired:'已過期',uncounted:'未盤點',normal:'正常',unmapped:'待對應'};
+export const names={out:'缺貨',low:'低庫存',expiring:'即期',expired:'已過期',uncounted:'未盤點',normal:'正常',unmapped:'待對應',independent:'獨立品項'};
 export const kinds={opening:'期初匯入',receive:'進貨',issue:'出貨',count:'盤點',price:'改價',edit:'商品修改',create:'新增商品',reverse:'沖銷',return:'顧客退回',mapping:'商品對應'};
 export const badge=status=>`<span class="badge ${esc(status)}">${names[status]||esc(status)}</span>`;
 export const money=v=>v===null||v===undefined?'未設定': /^\d+(\.\d+)?$/.test(String(v))?'$'+Number(v).toLocaleString('zh-TW',{maximumFractionDigits:2}):esc(v);
@@ -89,7 +89,7 @@ async function catalog(seq){
 
 function catalogDetail(id){
   const c=catalogItems.get(String(id));if(!c)return;
-  dialog(c.name,`${productPhoto(c.image,c.name,'catalog-preview-image','/media/')}<div class="catalog-preview-meta"><p class="muted">${esc(c.brand||c.category)}</p><p>${esc(c.specification||c.unit||'規格待確認')}</p><div class="catalog-price-row"><strong class="price">${money(c.price)}</strong>${badge(c.status)}</div></div>${!c.linked?'<p class="notice">這張價目卡尚未連結庫存商品，庫存狀態待確認。</p>':''}<div class="form-actions">${c.product_id?`<button class="primary" data-action="product" data-id="${c.product_id}">查看庫存與批次</button>`:'<button data-action="mapping-catalog">整理商品對應</button>'}<button data-action="close">關閉</button></div>`,'商品價目 · 照片與規格');
+  dialog(c.name,`${productPhoto(c.image,c.name,'catalog-preview-image','/media/')}<div class="catalog-preview-meta"><p class="muted">${esc(c.brand||c.category)}</p><p>${esc(c.specification||c.unit||'規格待確認')}</p><div class="catalog-price-row"><strong class="price">${money(c.price)}</strong>${badge(c.status)}</div></div>${!c.linked?`<p class="notice">${c.independent?'這是獨立品項，保留來源規格與價格，不連動庫存。':'這張價目卡尚未連結庫存商品，庫存狀態待確認。'}</p>`:''}<div class="form-actions">${c.product_id?`<button class="primary" data-action="product" data-id="${c.product_id}">查看庫存與批次</button>`:'<button data-action="mapping-catalog">整理商品對應</button>'}<button data-action="close">關閉</button></div>`,'商品價目 · 照片與規格');
 }
 
 async function history(seq){

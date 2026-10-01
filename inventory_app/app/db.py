@@ -14,6 +14,9 @@ def connect_db(path):
 
 def init_db(conn):
     conn.executescript(Path(__file__).with_name('schema.sql').read_text('utf-8'))
+    columns = {row[1] for row in conn.execute('PRAGMA table_info(catalog_cards)')}
+    if 'independent' not in columns:
+        conn.execute('ALTER TABLE catalog_cards ADD COLUMN independent INTEGER NOT NULL DEFAULT 0')
     conn.executescript(Path(__file__).with_name('shop_schema.sql').read_text('utf-8'))
 
 
