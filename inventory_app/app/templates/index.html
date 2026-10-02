@@ -18,20 +18,22 @@
         <a class="merchant-nav-link" href="/shop/manage"><span aria-hidden="true">▤</span>處理訂單</a>
         <button data-nav="exports"><span aria-hidden="true">↗</span>匯出資料</button>
       </nav>
-      <div class="sidebar-bottom"><span class="local-dot"></span> 本機資料保存</div>
+      <div class="sidebar-bottom"><span class="local-dot"></span> {{ '雲端資料保存' if config.CLOUD_MODE else '本機資料保存' }}</div>
     </aside>
     <div class="workspace">
       <header class="topbar"><span class="top-title">店內工作台</span><span id="demo-label" class="badge warning" hidden>示範資料</span><div class="top-actions"><a class="text-button" href="/shop">客人選購</a><span id="today"></span><button id="settings" class="text-button">設定</button><button id="logout" class="text-button">登出</button><span class="avatar">店</span></div></header>
       <main id="main" tabindex="-1" aria-live="polite"></main>
-      <footer class="app-footer"><span id="save-status">資料保存在這台電腦</span><span>菜騎鴨 · 輕鬆管好每一份庫存</span></footer>
+      <footer class="app-footer"><span id="save-status">{{ '資料儲存在雲端' if config.CLOUD_MODE else '資料保存在這台電腦' }}</span><span>菜騎鴨 · 輕鬆管好每一份庫存</span></footer>
     </div>
   </div>
   <section id="auth-screen" class="auth-screen" hidden>
     <form id="auth-form" class="auth-card">
       <span class="brand-mark">菜</span><p class="eyebrow">菜騎鴨 · 店務管理</p><h1 id="auth-title">登入工作台</h1>
       <p id="auth-copy" class="muted">輸入密碼，開始今天的商品管理。</p>
-      <label>管理密碼<input id="password" type="password" autocomplete="current-password" required></label>
-      <p id="auth-error" class="error" role="alert"></p><button class="primary" type="submit">進入工作台</button>
+      <div id="google-auth" hidden><button id="google-login" class="google-login" type="button">使用 Google 帳號登入</button><p id="google-auth-help" class="muted"></p></div>
+      <div id="password-auth"><label>管理密碼<input id="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">進入工作台</button></div>
+      <p id="auth-error" class="error" role="alert"></p>
+      <a class="customer-entry" href="/shop">我是顧客，直接選購 →</a><p class="muted auth-guest-note">顧客不需登入，下單時再填寫取貨資料。</p>
     </form>
   </section>
   <dialog id="dialog"><div class="dialog-heading"><div><p id="dialog-eyebrow" class="eyebrow">商品管理</p><h2 id="dialog-title"></h2></div><button id="dialog-close" class="icon-button" aria-label="關閉">×</button></div><div id="dialog-body"></div></dialog>

@@ -18,6 +18,10 @@ export async function api(path,body,method='POST'){
   if(body!==undefined){options.method=method;options.headers['Content-Type']='application/json';options.body=JSON.stringify(body);}
   const response=await fetch('/api'+path,options);
   const data=await response.json();
+  if(response.status===401&&path!=='/login'&&path!=='/session'){
+    const state=await api('/session');S.csrf=state.csrf;
+    if(!state.authenticated)showAuth({...state,login_error:'登入已過期或帳號權限已變更，請重新登入。'});
+  }
   if(!response.ok){const e=new Error(data.error?.message||'讀取失敗，請重試');e.fields=data.error?.fields;e.status=response.status;throw e;}
   return data;
 }
@@ -25,6 +29,7 @@ export async function api(path,body,method='POST'){
 let toastTimer;
 export function toast(message){$('#toast').textContent=message;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3500);}
 export function dialog(title,html,eyebrow='商品管理'){
+  if(S.authenticated===false)return;
   S.dialogDirty=false;$('#dialog-title').textContent=title;$('#dialog-eyebrow').textContent=eyebrow;$('#dialog-body').innerHTML=html;
   if(!$('#dialog').open)$('#dialog').showModal();
   $('#dialog-body').scrollTop=0;
@@ -50,7 +55,7 @@ export function size(view){
   return 10;
 }
 
-export async function refreshMeta(){S.meta=await api('/meta');$('#today').textContent=S.meta.today.replaceAll('-',' / ');$('#demo-label').hidden=!S.meta.demo;$('#save-status').textContent=S.meta.backup?.error?'備份未完成，請至資料管理查看':'資料保存在這台電腦';}
+export async function refreshMeta(){S.meta=await api('/meta');$('#today').textContent=S.meta.today.replaceAll('-',' / ');$('#demo-label').hidden=!S.meta.demo;$('#save-status').textContent=S.meta.backup?.error?'備份未完成，請至資料管理查看':(S.meta.cloud_mode?'資料儲存在雲端':'資料保存在這台電腦');}
 export async function navigate(view,filters={}){Object.assign(S,{view,page:1,q:'',status:'',category:'',photos:'',kind:'',from:'',to:'',productId:''},filters);await render();$('#main').scrollTop=0;}
 export async function refresh(){await refreshMeta();await render();}
 const heading=(title,subtitle,buttons='')=>`<div class="page-heading"><div><p class="eyebrow">菜騎鴨 · 店務管理</p><h1>${title}</h1><p class="muted">${subtitle}</p></div><div class="button-row">${buttons}</div></div>`;
@@ -163,9 +168,10 @@ $('#settings').onclick=()=>{if(!S.savingCounts)dataManager();};
 $('#logout').onclick=async()=>{if(S.savingCounts)return;if(hasStocktakeDrafts()&&!confirm('盤點尚未儲存，確定登出並捨棄已填數量？'))return;const state=await api('/logout',{});S.csrf=state.csrf;clearStocktakeDrafts();showAuth(state);};
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(S.meta)render();},180);});
 
-function showAuth(state){$('#app').hidden=true;$('#auth-screen').hidden=false;$('#auth-title').textContent=state.setup_required?'建立管理密碼':'登入工作台';$('#auth-copy').textContent=state.setup_required?'第一次使用，設定至少 10 個字元的密碼。':'輸入密碼，開始今天的庫存管理。';$('#password').value='';$('#password').minLength=state.setup_required?10:1;$('#password').autocomplete=state.setup_required?'new-password':'current-password';
-  $('#auth-form').onsubmit=async e=>{e.preventDefault();const button=e.currentTarget.querySelector('button');button.disabled=true;$('#auth-error').textContent='';try{const result=await api(state.setup_required?'/setup':'/login',{password:$('#password').value});S.csrf=result.csrf;await start();}catch(error){$('#auth-error').textContent=error.message;}finally{button.disabled=false;}};
+function showAuth(state){S.authenticated=false;S.account=null;if($('#dialog').open)$('#dialog').close();$('#app').hidden=true;$('#auth-screen').hidden=false;const google=state.auth_mode==='google';$('#auth-title').textContent=google?'店家登入':state.setup_required?'建立管理密碼':'登入工作台';$('#auth-copy').textContent=google?'使用已授權的 Google 帳號，開始今天的店務。':state.setup_required?'第一次使用，設定至少 10 個字元的密碼。':'輸入密碼，開始今天的庫存管理。';$('#password').value='';$('#password').minLength=state.setup_required?10:1;$('#password').autocomplete=state.setup_required?'new-password':'current-password';$('#password').required=!google;$('#password').disabled=google;$('#password-auth').hidden=google;$('#google-auth').hidden=!google;$('#google-login').disabled=!state.google_ready;$('#google-auth-help').textContent=state.google_ready?'僅開放已授權的店家帳號。':'Google 登入尚未設定完成，請聯絡店家管理員。';$('#auth-error').textContent=state.login_error||'';
+  $('#google-login').onclick=()=>{location.assign('/auth/google/start');};
+  $('#auth-form').onsubmit=async e=>{e.preventDefault();if(google)return;const button=e.currentTarget.querySelector('[type="submit"]');button.disabled=true;$('#auth-error').textContent='';try{const result=await api(state.setup_required?'/setup':'/login',{password:$('#password').value});S.csrf=result.csrf;S.account=result.account;await start();}catch(error){$('#auth-error').textContent=error.message;}finally{button.disabled=false;}};
 }
-async function start(){$('#auth-screen').hidden=true;$('#app').hidden=false;await refresh();}
-async function init(){try{const state=await api('/session');S.csrf=state.csrf;state.authenticated?await start():showAuth(state);}catch(e){$('#auth-screen').hidden=false;$('#auth-error').textContent=e.message;}}
+async function start(){S.authenticated=true;$('#auth-screen').hidden=true;$('#app').hidden=false;const roles={admin:['管','系統管理員'],owner:['闆','老闆'],staff:['員','員工']};$('.avatar').textContent=S.account?roles[S.account.role][0]:'店';$('.avatar').title=S.account?`${S.account.name||S.account.email} · ${roles[S.account.role][1]}`:'店家';await refresh();}
+async function init(){try{const state=await api('/session');S.csrf=state.csrf;S.account=state.account;state.authenticated?await start():showAuth(state);}catch(e){$('#auth-screen').hidden=false;$('#auth-error').textContent=e.message;}}
 init();

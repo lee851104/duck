@@ -11,6 +11,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .common import Problem, paginate, required_text, today, transaction
 from .db import get_db
+from .storage import get_storage, send_object
 from .reservations import expire_orders
 from .shop_catalog import initialize_shop, integer, product_map, public_product, quote, recipe_catalog, settings
 from .shop_orders import create_order, order_view, transition_order, token_for
@@ -93,9 +94,7 @@ def photo(name):
     visible=conn.execute('SELECT 1 FROM products p JOIN shop_products s ON p.id=s.product_id WHERE s.published=1 AND p.image=?',(name,)).fetchone()
     visible=visible or conn.execute('SELECT 1 FROM recipes WHERE published=1 AND image=?',(name,)).fetchone()
     if not visible and not session.get('user'):raise Problem('找不到照片',status=404)
-    path=current_app.config['DATA_DIR']/'media'/name
-    if not path.is_file():raise Problem('找不到照片',status=404)
-    return send_file(path)
+    return send_object('media/'+name)
 
 
 @shop.get('/api/customer-orders')
@@ -134,7 +133,7 @@ def save_settings():
     enabled=body.get('enabled') is True
     if enabled and not slots:raise Problem('請先設定至少一個取貨時段')
     value={'slots':list(dict.fromkeys(slots)),'enabled':enabled}
-    get_db().execute("INSERT OR REPLACE INTO metadata VALUES('shop_settings',?)",(json.dumps(value),))
+    get_db().execute("INSERT INTO metadata(key,value) VALUES('shop_settings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(json.dumps(value),))
     return jsonify(value)
 
 
@@ -142,7 +141,7 @@ def save_settings():
 def publish_product(pid):
     conn=get_db()
     if not conn.execute('SELECT 1 FROM products WHERE id=?',(pid,)).fetchone():raise Problem('找不到商品',status=404)
-    conn.execute('INSERT OR REPLACE INTO shop_products VALUES(?,?)',(pid,int(request.get_json().get('published') is True)))
+    conn.execute('INSERT INTO shop_products(product_id,published) VALUES(?,?) ON CONFLICT(product_id) DO UPDATE SET published=excluded.published',(pid,int(request.get_json().get('published') is True)))
     return jsonify(ok=True)
 
 
@@ -169,7 +168,7 @@ def save_recipe(rid=None):
         if any(pid not in ps or ps[pid]['price'] is None or ps[pid]['unit'].lower() in {'kg','g','斤','公斤','公克','台斤','兩'} for pid,_,_ in values):
             raise Problem('請先上架食材並確認售價，秤重商品暫不開放料理組合')
     image=body.get('image') or None
-    if image and (not re.fullmatch(r'[a-f0-9]{64}\.jpg',str(image)) or not (current_app.config['DATA_DIR']/'media'/image).is_file()):raise Problem('請先上傳有效菜色照片')
+    if image and (not re.fullmatch(r'[a-f0-9]{64}\.jpg',str(image)) or not get_storage().exists('media/'+image)):raise Problem('請先上傳有效菜色照片')
     with transaction(conn):
         if rid:
             old=conn.execute('SELECT * FROM recipes WHERE id=?',(rid,)).fetchone()
@@ -197,5 +196,5 @@ def upload_photo():
             output=io.BytesIO();normalized.save(output,'JPEG',quality=88)
     except (ValueError,UnidentifiedImageError,OSError,Image.DecompressionBombError):raise Problem('無法讀取照片，請選擇一般 JPG 或 PNG') from None
     content=output.getvalue();name=hashlib.sha256(content).hexdigest()+'.jpg'
-    (current_app.config['DATA_DIR']/'media'/name).write_bytes(content)
+    get_storage().put('media/'+name, content)
     return jsonify(image=name)

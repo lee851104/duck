@@ -1,5 +1,6 @@
 import hashlib
 import json
+import io
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -40,7 +41,11 @@ def revision(conn):
 
 
 def export_state(conn):
-    last = conn.execute('SELECT * FROM invoice_exports ORDER BY created_at DESC,rowid DESC LIMIT 1').fetchone()
+    marker = conn.execute("SELECT value FROM metadata WHERE key='latest_invoice_export'").fetchone()
+    last = conn.execute('SELECT * FROM invoice_exports WHERE id=?', (marker[0],)).fetchone() if marker else None
+    if last is None:
+        tie = 'id' if getattr(conn, 'dialect', None) == 'postgres' else 'rowid'
+        last = conn.execute(f'SELECT * FROM invoice_exports ORDER BY created_at DESC,{tie} DESC LIMIT 1').fetchone()
     rows, issues = invoice_rows(conn)
     return {'pending': not last or last['revision'] != revision(conn),
             'last_export': dict(last) if last else None, 'issues': issues, 'row_count': len(rows)}
@@ -68,9 +73,10 @@ def write_xlsx(path, rows):
         z.writestr('xl/worksheets/sheet1.xml', tostring(sheet, encoding='utf-8', xml_declaration=True))
 
 
-def build_invoice_xlsx(conn, destination):
+def build_invoice_xlsx(conn, destination, storage=None):
     destination = Path(destination)
-    destination.mkdir(parents=True, exist_ok=True)
+    if storage is None or not storage.remote:
+        destination.mkdir(parents=True, exist_ok=True)
     with transaction(conn):
         rows, issues = invoice_rows(conn)
         if not rows:
@@ -79,7 +85,13 @@ def build_invoice_xlsx(conn, destination):
             raise Problem('請先處理發票商品的待確認資料', fields={'issues': issues})
         eid = uuid4().hex
         filename = f'易發票商品_{eid}.xlsx'
-        write_xlsx(destination/filename, rows)
+        if storage is not None and storage.remote:
+            output = io.BytesIO()
+            write_xlsx(output, rows)
+            storage.put('exports/'+filename, output.getvalue())
+        else:
+            write_xlsx(destination/filename, rows)
         rev = revision(conn)
         conn.execute('INSERT INTO invoice_exports VALUES(?,?,?,?)', (eid, rev, filename, now()))
+        conn.execute("INSERT INTO metadata(key,value) VALUES('latest_invoice_export',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (eid,))
     return {'export_id': eid, 'product_revision': rev, 'row_count': len(rows), 'issues': [], 'filename': filename}

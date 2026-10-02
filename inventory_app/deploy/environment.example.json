@@ -1,0 +1,11 @@
+{
+  "CLOUD_MODE": "true",
+  "AUTH_MODE": "google",
+  "DATABASE_SCHEMA": "duck",
+  "STORAGE_BACKEND": "supabase",
+  "SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
+  "SUPABASE_BUCKET": "duck-private",
+  "GOOGLE_CLIENT_ID": "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com",
+  "GOOGLE_REDIRECT_URI": "https://YOUR_CLOUD_RUN_URL/auth/google/callback",
+  "GOOGLE_ADMIN_EMAIL": "lee851104@gmail.com"
+}

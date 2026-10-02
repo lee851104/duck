@@ -1,11 +1,12 @@
 import secrets
 import time
 
-from flask import Blueprint, current_app, jsonify, request, session
+from flask import Blueprint, current_app, g, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .common import Problem, required_text, transaction
 from .db import get_db
+from .google_auth import google_mode, google_ready, public_account, validate_merchant_session
 
 auth = Blueprint('auth', __name__)
 
@@ -13,7 +14,10 @@ auth = Blueprint('auth', __name__)
 def session_data():
     session.setdefault('csrf', secrets.token_urlsafe(32))
     return {'authenticated': bool(session.get('user')), 'csrf': session['csrf'],
-            'setup_required': not bool(get_db().execute('SELECT 1 FROM users').fetchone())}
+            'setup_required': not google_mode() and not bool(get_db().execute('SELECT 1 FROM users').fetchone()),
+            'auth_mode': current_app.config['AUTH_MODE'], 'google_ready': bool(google_ready()),
+            'account': public_account(g.account) if g.account else None,
+            'login_error': session.pop('login_error', None)}
 
 
 @auth.get('/api/session')
@@ -23,6 +27,8 @@ def state():
 
 @auth.post('/api/setup')
 def setup():
+    if google_mode():
+        raise Problem('請使用 Google 帳號登入', status=403)
     password = required_text(request.get_json().get('password'), '密碼', 128)
     if len(password) < 10:
         raise Problem('密碼至少需要 10 個字元')
@@ -38,6 +44,8 @@ def setup():
 
 @auth.post('/api/login')
 def login():
+    if google_mode():
+        raise Problem('請使用 Google 帳號登入', status=403)
     bucket = current_app.extensions.setdefault('login_attempts', {})
     key = request.remote_addr or 'local'
     attempts = [t for t in bucket.get(key, []) if time.monotonic()-t < 300]
@@ -57,16 +65,21 @@ def login():
 
 @auth.post('/api/logout')
 def logout():
+    shop_client = session.get('shop_client')
     session.clear()
+    if shop_client:
+        session['shop_client'] = shop_client
+    g.account = None
     return jsonify(session_data())
 
 
 def guard():
+    validate_merchant_session()
     if not request.path.startswith('/api/'):
         return
     if request.path.startswith('/api/shop/'):
         request.max_content_length = 64 * 1024
-    public = {'/api/session', '/api/login', '/api/setup'}
+    public = {'/api/session', '/api/login', '/api/setup', '/api/logout'}
     public |= {'/api/shop/session','/api/shop/catalog','/api/shop/recipes','/api/shop/quote','/api/shop/orders','/api/shop/order-status','/api/shop/recover-order'}
     if request.path not in public and not session.get('user'):
         raise Problem('請先登入', status=401)

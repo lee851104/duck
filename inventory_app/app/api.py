@@ -5,7 +5,8 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file, session
 
-from .backups import perform_backup
+from .backups import enqueue_cloud_backup, perform_backup
+from .storage import get_storage, send_object
 from .common import Problem, mutate, now, paginate, record, required_text, today, transaction
 from .dashboard import get_dashboard, list_products, products_with_stock
 from .db import get_db
@@ -35,7 +36,8 @@ def metadata():
                    catalog_categories=sorted({r['category'] for r in catalog_rows()}, key=category_key),
                    products=[dict(r) for r in conn.execute('SELECT id,code,name,unit FROM products ORDER BY name')],
                    backup=dict(backup) if backup else None, export=export_state(conn),
-                   demo=current_app.config.get('DEMO', False))
+                   demo=current_app.config.get('DEMO', False), cloud_mode=bool(current_app.config.get('CLOUD_MODE')),
+                   backup_pending=bool(conn.execute("SELECT 1 FROM metadata WHERE key='cloud_backup_pending'").fetchone()))
 
 
 @api.get('/api/dashboard')
@@ -195,7 +197,7 @@ def set_mapping(kind, mid):
 
 @api.post('/api/invoice-exports')
 def invoice_export():
-    return jsonify(build_invoice_xlsx(get_db(),current_app.config['DATA_DIR']/'exports'))
+    return jsonify(build_invoice_xlsx(get_db(),current_app.config['DATA_DIR']/'exports', storage=get_storage()))
 
 
 @api.post('/api/invoice-items')
@@ -221,11 +223,17 @@ def invoice_download(eid):
     row = get_db().execute('SELECT * FROM invoice_exports WHERE id=?',(eid,)).fetchone()
     if not row:
         raise Problem('找不到匯出檔',status=404)
-    return send_file(current_app.config['DATA_DIR']/'exports'/row['filename'],as_attachment=True)
+    return send_object('exports/'+row['filename'], attachment=True)
+
+
+def require_local_import():
+    if current_app.config.get('CLOUD_MODE') or get_storage().remote:
+        raise Problem('雲端不支援原始 Excel 匯入；請在本機預覽核對後，由管理員執行資料與媒體遷移工具', status=409)
 
 
 @api.post('/api/imports/preview')
 def import_preview():
+    require_local_import()
     source = current_app.config['SOURCE_DIR']
     paths = list(source.glob('*.xlsx'))
     if not paths:
@@ -235,6 +243,7 @@ def import_preview():
 
 @api.post('/api/imports/<iid>/commit')
 def import_commit(iid):
+    require_local_import()
     if not re.fullmatch('[a-f0-9]{64}',iid):
         raise Problem('匯入識別碼不正確')
     data = current_app.config['DATA_DIR']
@@ -255,6 +264,8 @@ def media(name):
         raise Problem('請先登入',status=401)
     if not re.fullmatch(r'[a-f0-9]{64}(\.thumb)?\.(jpg|jpeg|png|webp|gif)',name):
         raise Problem('找不到圖片',status=404)
+    if get_storage().remote:
+        return send_object('media/'+name)
     data = current_app.config['DATA_DIR']
     for folder in [data/'media',data/'staging'/'media']:
         if (folder/name).is_file():
@@ -264,4 +275,6 @@ def media(name):
 
 @api.post('/api/backups')
 def backup():
+    if current_app.config.get('CLOUD_MODE'):
+        return jsonify(enqueue_cloud_backup(current_app._get_current_object(), get_db())), 202
     return jsonify(perform_backup(current_app._get_current_object()))

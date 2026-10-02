@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from .common import Problem, decimal_text, number, required_text, transaction
 from .dashboard import products_with_stock
-from .reservations import reserved_quantity
 
 
 SEEDS = [
@@ -30,9 +29,9 @@ def initialize_shop(conn, publish_existing=None):
     if publish_existing is None:
         publish_existing=not conn.execute("SELECT 1 FROM metadata WHERE key='shop_initialized'").fetchone()
     with transaction(conn):
-        conn.execute('INSERT OR IGNORE INTO shop_products SELECT id,? FROM products',(int(publish_existing),))
-        conn.execute("INSERT OR IGNORE INTO metadata VALUES('shop_initialized','1')")
-        conn.execute("INSERT OR IGNORE INTO metadata VALUES('shop_settings',?)",(json.dumps({'slots':[],'enabled':False}),))
+        conn.execute('INSERT INTO shop_products SELECT id,? FROM products WHERE 1=1 ON CONFLICT(product_id) DO NOTHING',(int(publish_existing),))
+        conn.execute("INSERT INTO metadata VALUES('shop_initialized','1') ON CONFLICT(key) DO NOTHING")
+        conn.execute("INSERT INTO metadata VALUES('shop_settings',?) ON CONFLICT(key) DO NOTHING",(json.dumps({'slots':[],'enabled':False}),))
         for slug,name,description,icon,theme,tag,notes,steps,items in SEEDS:
             if conn.execute('SELECT 1 FROM recipes WHERE slug=?',(slug,)).fetchone():
                 continue
@@ -56,7 +55,7 @@ def product_map(conn, day, include_hidden=False):
         if not include_hidden and not published.get(p['id']):
             continue
         # Customer orders require known dated stock; no guessed expiry.
-        available=sum((max(Decimal(0),Decimal(b['quantity'])-reserved_quantity(conn,b['id']))
+        available=sum((max(Decimal(0),Decimal(b['quantity'])-Decimal(b['reserved_quantity']))
             for b in p['batches'] if b['quantity'] is not None and b['saleable'] and b['expires_on'] and not b['expired']),Decimal(0))
         status='pending' if p['uncounted'] or p['price'] is None or p['unit'].lower() in WEIGHT_UNITS else 'available' if available>0 else 'sold_out'
         result[p['id']]={'id':p['id'],'name':p['name'],'category':re.sub(r'^[A-Z]','',p['category']),
