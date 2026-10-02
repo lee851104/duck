@@ -18,6 +18,19 @@ from .shop_orders import create_order, order_view, transition_order, token_for
 shop=Blueprint('shop',__name__)
 
 
+@shop.before_request
+def merchant_only():
+    # Keep historical orders available to the owner, but close customer ordering.
+    if current_app.config.get('CUSTOMER_ORDERING_ENABLED', False):
+        return
+    if request.path == '/shop':
+        return redirect('/#daily-sales')
+    if request.path.startswith('/api/shop/') or (request.path.startswith('/shop/media/') and not session.get('user')):
+        raise Problem('客人下單功能已停用，請洽店家', status=410)
+    if request.path == '/api/shop-admin/settings' and request.method == 'POST':
+        raise Problem('目前使用每日銷售單，客人接單已停用', status=410)
+
+
 @shop.get('/shop')
 def home():return render_template('shop.html')
 

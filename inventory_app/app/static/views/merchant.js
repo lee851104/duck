@@ -1,4 +1,4 @@
-import {S,$,api,esc,money,qty,pager,empty,toast,render} from '../app.js';
+import {S,$,api,esc,money,qty,pager,empty,toast,render,categoryButtons} from '../app.js';
 import {productPhoto} from '../product-photo.js';
 
 const drafts=new Map();
@@ -10,7 +10,7 @@ window.addEventListener('beforeunload',event=>{
 });
 
 function toolbar(){
-  return `<div class="toolbar merchant-toolbar"><div class="search-box"><input id="search" type="search" aria-label="搜尋商品" placeholder="找商品名稱或品號" value="${esc(S.q)}"></div><select id="category" aria-label="商品分類"><option value="">所有分類</option>${S.meta.categories.map(c=>`<option value="${esc(c)}" ${c===S.category?'selected':''}>${esc(c.replace(/^[A-Z]/,''))}</option>`).join('')}</select><div class="filters" aria-label="庫存狀態">${[['','全部'],['restock','待補貨'],['uncounted','未盤點'],['expiring','即期']].map(([value,label])=>`<button data-action="filter" data-status="${value}" aria-pressed="${S.status===value}" class="${S.status===value?'selected':''}">${label}</button>`).join('')}</div></div>`;
+  return `<div class="toolbar merchant-toolbar"><div class="search-box"><input id="search" type="search" aria-label="搜尋商品" placeholder="找商品名稱或品號" value="${esc(S.q)}"></div>${categoryButtons(S.meta.categories,S.category)}<div class="filters" aria-label="庫存狀態">${[['','全部'],['restock','待補貨'],['uncounted','未盤點'],['expiring','即期']].map(([value,label])=>`<button data-action="filter" data-status="${value}" aria-pressed="${S.status===value}" class="${S.status===value?'selected':''}">${label}</button>`).join('')}</div></div>`;
 }
 
 function cards(items){
@@ -58,7 +58,6 @@ export async function renderMerchant(isCurrent){
   document.querySelectorAll('[data-inventory-mode]').forEach(b=>b.onclick=()=>{S.inventoryMode=b.dataset.inventoryMode;render();});
   let timer;
   $('#search').oninput=e=>{const value=e.target.value;clearTimeout(timer);timer=setTimeout(async()=>{if(S.view!=='inventory'||S.savingCounts)return;S.q=value;S.page=1;await render();$('#search')?.focus();},280);};
-  $('#category').onchange=e=>{S.category=e.target.value;S.page=1;render();};
   if(!$('#stocktake-form'))return;
   const batchMap=new Map(p.items.flatMap(product=>product.batches.map(batch=>[batch.id,{product,batch}])));
   document.querySelectorAll('[data-count-batch]').forEach(input=>input.oninput=()=>{
@@ -99,6 +98,31 @@ export async function renderMerchant(isCurrent){
   updateSummary();
 }
 
+let exportTimer;
 export async function renderExports(){
-  $('#main').innerHTML=`<div class="page-heading"><div><p class="eyebrow">需要時，再匯出</p><h1>匯出資料</h1></div></div><div class="export-options"><section><h2>商品價目表</h2><p>預覽商品照片與售價，列印或另存 PDF。</p><button data-nav="catalog" class="primary">預覽價目表</button></section><section><h2>發票商品檔</h2><p>檢查商品對應與價格，匯出平台需要的七欄 Excel。</p><button data-action="invoice-export" class="primary">檢查並匯出</button></section></div>`;
+  clearTimeout(exportTimer);
+  const state=await api('/excel-sync');
+  if(S.view!=='exports')return;
+  const busy=state.pending||state.running,last=state.last,ready=last&&!busy&&!state.error;
+  $('#main').innerHTML=`<div class="page-heading"><div><p class="eyebrow">菜騎鴨 · 本機 Excel</p><h1>匯出庫存管理表</h1><p class="muted">平常在系統記錄銷售、盤點與改價，Excel 由系統更新。</p></div></div>
+    <section class="panel inventory-export-panel"><h2>庫存管理表</h2><p>完整匯出所有商品與批次，包含進價、售價、數量及效期。未知數值保留空白；同商品不同批次分列。</p><button id="download-inventory" class="primary" ${ready?'':'disabled'}>下載庫存管理表 Excel</button><p class="draft-note">下載的是最後同步完成的資料；Excel 內的手動修改不會回寫系統。</p></section>
+    <section class="panel inventory-export-panel"><h2>三份 Excel 自動同步</h2><p id="excel-sync-status" role="status">${busy?'正在產生最新 Excel…':state.error?esc(state.error):last?'已同步 · '+esc(last.created_at.slice(0,19).replace('T',' ')):'尚未產生 Excel，請按下方開始同步。'}</p>
+    <p class="muted">每次資料儲存成功後，自動產生庫存管理表、商品價目表與發票系統表。價目表保留照片與版型，只有已確認對應的商品會連動售價；獨立品項保留原值。</p>
+    ${last?`<p>${last.batch_count} 筆庫存批次 · ${last.invoice_count} 筆發票商品</p><label>最新三份檔案所在資料夾<input id="excel-folder" readonly value="${esc(last.folder)}"></label><p class="draft-note">複製後貼到檔案總管的位址列即可開啟。每次同步產生新的一批，已開啟的舊 Excel 不會自行更新。</p><button id="copy-excel-folder">複製資料夾位置</button>`:''}
+    <button id="retry-excel-sync" ${busy?'disabled':''}>${last?'重新同步':'開始同步'}</button></section>`;
+  $('#download-inventory').onclick=async()=>{
+    const button=$('#download-inventory');button.disabled=true;
+    try{
+      const response=await fetch('/api/inventory-export/download');
+      if(!response.ok){const result=await response.json();throw new Error(result.error?.message||'下載失敗，請重試');}
+      const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');
+      link.href=url;link.download='庫存管理.xlsx';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }catch(error){toast(error.message);}finally{if(button.isConnected)button.disabled=false;}
+  };
+  $('#retry-excel-sync').onclick=async()=>{try{await api('/excel-sync',{});await renderExports();}catch(error){toast(error.message);}};
+  if($('#copy-excel-folder'))$('#copy-excel-folder').onclick=async()=>{
+    try{await navigator.clipboard.writeText(last.folder);toast('已複製資料夾位置');}
+    catch{$('#excel-folder').focus();$('#excel-folder').select();toast('請複製選取的資料夾位置');}
+  };
+  if(busy)exportTimer=setTimeout(()=>{if(S.view==='exports')renderExports().catch(e=>toast(e.message));},1200);
 }

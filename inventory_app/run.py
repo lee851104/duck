@@ -27,11 +27,13 @@ def main():
         config['BACKUP_DIR']=args.data_dir.resolve()/'backups'
     app=create_app(config)
     stop=start_backup_worker(app)
+    excel_stop=app.extensions['excel_sync'].start()
     print(f'菜騎鴨庫存管理：http://127.0.0.1:{args.port}',flush=True)
     try:
         serve(app,host='127.0.0.1',port=args.port,threads=4)
     finally:
         stop.set()
+        excel_stop.set()
 
 
 if __name__=='__main__':

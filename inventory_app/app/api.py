@@ -18,6 +18,70 @@ from .catalog_order import category_key, product_key
 api = Blueprint('api', __name__)
 
 
+@api.get('/api/excel-sync')
+def excel_sync_status():
+    return jsonify(current_app.extensions['excel_sync'].status())
+
+
+@api.post('/api/excel-sync')
+def excel_sync_retry():
+    current_app.extensions['excel_sync'].request()
+    return jsonify(current_app.extensions['excel_sync'].status()), 202
+
+
+@api.get('/api/inventory-export/download')
+def inventory_export_download():
+    path = current_app.extensions['excel_sync'].download()
+    return send_file(path, as_attachment=True, download_name='庫存管理.xlsx', max_age=0)
+
+
+@api.get('/api/daily-sales/products')
+def daily_sale_products():
+    from decimal import Decimal
+    from .common import decimal_text
+    from .daily_sales import eligible_batches, sale_date
+    day = sale_date(request.args.get('sold_on', today().isoformat()), today())
+    rows = []
+    for p in get_db().execute('SELECT id,code,name,unit,category,image FROM products'):
+        rows.append({**dict(p), 'available': decimal_text(sum(
+            (b['available'] for b in eligible_batches(get_db(), p['id'], day)), Decimal(0)))})
+    return jsonify(items=sorted(rows, key=product_key))
+
+
+@api.post('/api/daily-sales/preview')
+def preview_daily_sale():
+    from .daily_sales import plan_sheet
+    with transaction(get_db()):
+        result = plan_sheet(get_db(), request.get_json(), today())
+    return jsonify(result)
+
+
+@api.post('/api/daily-sales')
+def save_daily_sale():
+    from .daily_sales import post_sheet
+    return jsonify(post_sheet(get_db(), request.get_json(), session['user'], today()))
+
+
+@api.get('/api/daily-sales')
+def daily_sale_history():
+    rows = [dict(r) for r in get_db().execute('''SELECT d.*,
+        (SELECT COUNT(*) FROM daily_sale_lines l WHERE l.sheet_id=d.id) AS item_count
+        FROM daily_sales d ORDER BY sold_on DESC,id DESC''')]
+    return jsonify(paginate(rows, *page_args()))
+
+
+@api.get('/api/daily-sales/<int:sid>')
+def get_daily_sale(sid):
+    from .daily_sales import sheet_detail
+    return jsonify(sheet_detail(get_db(), sid))
+
+
+@api.post('/api/daily-sales/<int:sid>/void')
+def cancel_daily_sale(sid):
+    from .daily_sales import void_sheet
+    return jsonify(void_sheet(get_db(), sid, request.get_json(), session['user']))
+
+
 def page_args(default=10):
     return request.args.get('page', 1), request.args.get('page_size', default)
 

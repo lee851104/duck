@@ -1,5 +1,6 @@
 # Original business workbooks stay local.
 /原始資料/
+/raw_data/
 *.xlsx
 *.xls
 ~$*

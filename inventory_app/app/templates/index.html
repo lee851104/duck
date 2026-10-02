@@ -6,22 +6,23 @@
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/usability.css">
   <link rel="stylesheet" href="/static/merchant.css">
+  <link rel="stylesheet" href="/static/daily-sales.css">
   <script type="module" src="/static/app.js"></script>
 </head>
 <body>
   <div id="app" class="app-shell" hidden>
     <aside class="sidebar">
-      <a class="brand" href="#inventory"><span class="brand-mark">菜</span><span>菜騎鴨<small>店務管理</small></span></a>
+      <a class="brand" href="#daily-sales" data-nav="daily-sales"><span class="brand-mark">菜</span><span>菜騎鴨<small>店務管理</small></span></a>
       <div class="nav-label">工作空間</div>
       <nav aria-label="主要功能">
+        <button data-nav="daily-sales"><span aria-hidden="true">▤</span>每日銷售單</button>
         <button data-nav="inventory"><span aria-hidden="true">▧</span>管商品</button>
-        <a class="merchant-nav-link" href="/shop/manage"><span aria-hidden="true">▤</span>處理訂單</a>
         <button data-nav="exports"><span aria-hidden="true">↗</span>匯出資料</button>
       </nav>
       <div class="sidebar-bottom"><span class="local-dot"></span> 本機資料保存</div>
     </aside>
     <div class="workspace">
-      <header class="topbar"><span class="top-title">店內工作台</span><span id="demo-label" class="badge warning" hidden>示範資料</span><div class="top-actions"><a class="text-button" href="/shop">客人選購</a><span id="today"></span><button id="settings" class="text-button">設定</button><button id="logout" class="text-button">登出</button><span class="avatar">店</span></div></header>
+      <header class="topbar"><span class="top-title">店內工作台</span><span id="demo-label" class="badge warning" hidden>示範資料</span><div class="top-actions"><span id="today"></span><button id="settings" class="text-button">設定</button><button id="logout" class="text-button">登出</button><span class="avatar">店</span></div></header>
       <main id="main" tabindex="-1" aria-live="polite"></main>
       <footer class="app-footer"><span id="save-status">資料保存在這台電腦</span><span>菜騎鴨 · 輕鬆管好每一份庫存</span></footer>
     </div>

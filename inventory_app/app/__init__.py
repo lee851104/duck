@@ -28,7 +28,7 @@ def create_app(config=None):
         app.config['SECRET_KEY'] = key_file.read_text('ascii')
     app.config['DATA_DIR'] = data
     app.config['DB_PATH'] = data/'inventory.sqlite3'
-    app.config.setdefault('SOURCE_DIR', root.parent/'原始資料')
+    app.config.setdefault('SOURCE_DIR', root.parent/('raw_data' if (root.parent/'raw_data').is_dir() else '原始資料'))
     app.config.setdefault('BACKUP_DIR', root/'backups')
     conn = connect_db(app.config['DB_PATH'])
     init_db(conn)
@@ -42,6 +42,8 @@ def create_app(config=None):
     app.register_blueprint(api)
     from .shop_api import shop
     app.register_blueprint(shop)
+    from .excel_sync import ExcelSync
+    app.extensions['excel_sync'] = ExcelSync(app)
 
     @app.errorhandler(Problem)
     def problem(error):
@@ -64,6 +66,14 @@ def create_app(config=None):
         response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'"
         if request.path.startswith('/api/'):
             response.headers['Cache-Control'] = 'no-store'
+        # Only committed writes schedule a snapshot; errors and preview requests
+        # must not publish partial or hypothetical inventory changes.
+        if (request.method in {'POST', 'PATCH', 'PUT', 'DELETE'} and response.status_code < 300
+                and request.path.startswith('/api/')
+                and request.path not in {'/api/login', '/api/logout', '/api/setup',
+                    '/api/daily-sales/preview', '/api/excel-sync', '/api/invoice-exports'}
+                and not request.path.startswith('/api/imports/preview')):
+            app.extensions['excel_sync'].request()
         return response
 
     @app.post('/api/products')

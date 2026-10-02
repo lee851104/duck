@@ -34,3 +34,15 @@ CREATE TABLE IF NOT EXISTS backup_runs(
 CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS batches_product ON batches(product_id);
 CREATE INDEX IF NOT EXISTS movements_product ON movements(product_id, id);
+CREATE TABLE IF NOT EXISTS daily_sales(
+ id INTEGER PRIMARY KEY, sold_on TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
+ status TEXT NOT NULL CHECK(status IN ('posted','void')), created_at TEXT NOT NULL, actor TEXT NOT NULL,
+ void_reason TEXT, voided_at TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS daily_sales_one_posted ON daily_sales(sold_on) WHERE status='posted';
+CREATE TABLE IF NOT EXISTS daily_sale_lines(
+ id INTEGER PRIMARY KEY, sheet_id INTEGER NOT NULL REFERENCES daily_sales(id),
+ product_id INTEGER NOT NULL REFERENCES products(id), name TEXT NOT NULL, code TEXT NOT NULL,
+ unit TEXT NOT NULL, quantity TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS daily_sale_movements(
+ line_id INTEGER NOT NULL REFERENCES daily_sale_lines(id),
+ movement_id INTEGER NOT NULL UNIQUE REFERENCES movements(id));

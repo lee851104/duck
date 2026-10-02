@@ -27,7 +27,7 @@ def date_text(value):
 def preview_import(paths, staging_dir):
     stage = Path(staging_dir)
     stage.mkdir(parents=True, exist_ok=True)
-    digest = hashlib.sha256(b'inventory-import-v3')
+    digest = hashlib.sha256(b'inventory-import-v4')
     for path in sorted(paths, key=lambda p: p.name):
         digest.update(path.name.encode('utf-8'))
         with path.open('rb') as f:
@@ -104,7 +104,9 @@ def preview_import(paths, staging_dir):
                             if name is None and price is None:
                                 continue
                             possible = [im for im in images if im['sheet'] == ws.title
-                                        and r-4 <= im['row'] <= r and (im['col'] <= 7) == (col <= 7)]
+                                        # The right photo may begin in column G and extend
+                                        # across H:J; G belongs to the right-hand card.
+                                        and r-4 <= im['row'] <= r and (im['col'] <= 6) == (col <= 7)]
                             preview['price_cards'].append({'source': f'{ws.title}!{openpyxl.utils.get_column_letter(col)}{r}',
                                 'brand': str(grid.get((r-3, col)) or ''), 'name': str(name or ''),
                                 'specification': str(grid.get((r-1, col)) or ''),

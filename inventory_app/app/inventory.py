@@ -147,6 +147,8 @@ def reverse_movement(conn, movement_id, reason, request_id, actor_id):
             raise Problem('此紀錄請以盤點或重新修改商品更正')
         if m['reason'].startswith('客人訂單 '):
             raise Problem('訂單取貨紀錄不能直接沖銷，退貨請使用「顧客退回」登記', status=409)
+        if conn.execute('SELECT 1 FROM daily_sale_movements WHERE movement_id=?', (movement_id,)).fetchone():
+            raise Problem('請到每日銷售單紀錄沖銷整張單，避免單據與庫存不一致', status=409)
         if conn.execute('SELECT 1 FROM movements WHERE reversal_of=?', (movement_id,)).fetchone():
             raise Problem('這筆紀錄已沖銷', status=409)
         b = conn.execute('SELECT * FROM batches WHERE id=?', (m['batch_id'],)).fetchone()

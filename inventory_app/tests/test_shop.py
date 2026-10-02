@@ -1,6 +1,8 @@
 import json
 import unittest
-from datetime import date
+from datetime import date, datetime
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
 from uuid import uuid4
 
 from tests import test_app
@@ -18,7 +20,12 @@ class ShopTest(unittest.TestCase):
     login = test_app.AppTest.login
 
     def setUp(self):
+        clock = patch('app.common.datetime', wraps=datetime)
+        fixed_clock = clock.start()
+        self.addCleanup(clock.stop)
+        fixed_clock.now.return_value = datetime(2026, 10, 1, 9, tzinfo=ZoneInfo('Asia/Taipei'))
         test_app.AppTest.setUp(self)
+        self.app.config['CUSTOMER_ORDERING_ENABLED'] = True  # Legacy order compatibility tests only.
         self.login()
         self.admin = self.client
         self.headers = {'X-CSRF-Token':self.token}

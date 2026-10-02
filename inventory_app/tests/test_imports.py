@@ -11,6 +11,17 @@ from app.imports import preview_import, commit_import
 
 
 class ImportTest(unittest.TestCase):
+    def test_right_photo_starting_in_column_g_does_not_replace_left_product(self):
+        wb=Workbook();ws=wb.active;ws.title='4冷凍食品'
+        ws['E15']='奶黃包';ws['E17']=80;ws['K15']='芝麻包';ws['K17']=80
+        path=self.root/'two-products.xlsx';wb.save(path)
+        images=[{'sheet':ws.title,'row':14,'col':2,'thumbnail_path':'custard.jpg'},
+                {'sheet':ws.title,'row':14,'col':7,'thumbnail_path':'sesame.jpg'}]
+        with patch('app.imports.extract_media',return_value=images):
+            p=preview_import([path],self.root/'two-products-stage')
+        self.assertEqual([(r['name'],r['image']) for r in p['price_cards']],
+                         [('奶黃包','custard.jpg'),('芝麻包','sesame.jpg')])
+
     def test_catalog_uses_frontmost_image_when_excel_overlays_old_photo(self):
         wb=Workbook();ws=wb.active;ws.title='11調味粉'
         ws['E8']='台糖';ws['E9']='晶冰糖';ws['E10']='1kg／包';ws['E11']=50

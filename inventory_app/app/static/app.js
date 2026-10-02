@@ -1,9 +1,10 @@
+import {renderDailySales,hasSalesDraft} from './views/daily-sales.js';
 import {renderMerchant,renderExports,hasStocktakeDrafts,clearStocktakeDrafts} from './views/merchant.js';
 import {productPhoto} from './product-photo.js';
 import {operation, productPanel, newProduct} from './views/operations.js';
 import {dataManager, importPreview, mappings} from './views/data.js';
 
-export const S={view:'inventory',inventoryMode:'table',savingCounts:false,page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
+export const S={view:location.hash==='#inventory'?'inventory':'daily-sales',inventoryMode:'table',savingCounts:false,page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
 export const $=s=>document.querySelector(s);
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const names={out:'缺貨',low:'低庫存',expiring:'即期',expired:'已過期',uncounted:'未盤點',normal:'正常',unmapped:'待對應',independent:'獨立品項'};
@@ -29,7 +30,7 @@ export function dialog(title,html,eyebrow='商品管理'){
   if(!$('#dialog').open)$('#dialog').showModal();
   $('#dialog-body').scrollTop=0;
 }
-export function closeDialog(force=false){if(!force&&S.dialogDirty&&!confirm('尚未儲存，確定離開？'))return;S.dialogDirty=false;$('#dialog').close();}
+export function closeDialog(force=false){if(S.savingSales&&!force)return;if(!force&&S.dialogDirty&&!confirm('尚未儲存，確定離開？'))return;S.dialogDirty=false;$('#dialog').close();}
 export function formSubmit(form,callback){
   let busy=false;
   form.addEventListener('submit',async event=>{event.preventDefault();if(busy)return;busy=true;
@@ -67,9 +68,16 @@ async function dashboard(seq){
     <aside class="panel quick"><h3>日常操作</h3><p>找到商品，幾步完成登記。</p>${action('receive','登記進貨','補貨到店，新增批次','＋')}${action('issue','登記出貨','銷售、報廢或退貨','↗')}${action('count','盤點庫存','確認現場實際數量','✓')}<div class="quick-note">每次庫存變動都會留下紀錄。<br>${d.updated_at?'最後異動 '+esc(d.updated_at.slice(5,16).replace('T',' ')):'尚無庫存異動'}</div></aside></div>`;
 }
 
-function searchToolbar(includeStatus=true){
-  return `<div class="toolbar"><div class="search-box"><input id="search" aria-label="搜尋商品" placeholder="搜尋商品名稱或品號" value="${esc(S.q)}"></div><select id="category" aria-label="商品分類"><option value="">所有分類</option>${(S.view==='catalog'?S.meta.catalog_categories:S.meta.categories).map(c=>`<option ${c===S.category?'selected':''}>${esc(c)}</option>`).join('')}</select>${includeStatus?`<div class="filters">${[['','全部'],['restock','待補貨'],['expiring','即期'],['uncounted','未盤點']].map(([value,label])=>`<button data-action="filter" data-status="${value}" class="${S.status===value?'selected':''}">${label}</button>`).join('')}</div>`:''}</div>`;
+export function categoryButtons(categories,selected,action='category-filter'){
+  const choices=['',...new Set(categories.filter(Boolean))];
+  return `<div class="category-filter"><div class="category-filter-heading"><strong>分類</strong><small>亮起表示已選取，再點取消</small></div><div class="category-buttons" role="group" aria-label="商品分類">${choices.map(c=>`<button type="button" data-action="${action}" data-category="${esc(c)}" aria-pressed="${selected===c}"><span class="category-check" aria-hidden="true">✓</span>${esc(c?c.replace(/^[A-Z]/,''):'全部分類')}</button>`).join('')}</div></div>`;
 }
+
+function searchToolbar(includeStatus=true){
+  return `<div class="toolbar"><div class="search-box"><input id="search" aria-label="搜尋商品" placeholder="搜尋商品名稱或品號" value="${esc(S.q)}"></div>${categoryButtons(S.view==='catalog'?S.meta.catalog_categories:S.meta.categories,S.category)}${includeStatus?`<div class="filters">${[['','全部'],['restock','待補貨'],['expiring','即期'],['uncounted','未盤點']].map(([value,label])=>`<button data-action="filter" data-status="${value}" class="${S.status===value?'selected':''}">${label}</button>`).join('')}</div>`:''}</div>`;
+}
+
+async function dailySales(seq){await renderDailySales(seq,()=>seq===generation);}
 
 async function inventory(seq){await renderMerchant(()=>seq===generation);}
 
@@ -103,18 +111,18 @@ async function history(seq){
 
 let generation=0;
 export async function render(){
-  if(S.savingCounts)return;
+  if(S.savingCounts||S.savingSales)return;
   const seq=++generation;
   $('#main').dataset.view=S.view;
   document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===S.view));
   try{
-    await ({dashboard,inventory,catalog,history,exports:renderExports}[S.view]||inventory)(seq);
+    await ({dashboard,inventory,catalog,history,exports:renderExports,'daily-sales':dailySales}[S.view]||inventory)(seq);
     if(seq!==generation)return;
 
   }
   catch(e){if(seq===generation)$('#main').innerHTML=empty('暫時無法讀取',e.message,'<button data-action="retry">重新載入</button>');}
 }
-function bindSearch(){let timer;$('#search').oninput=e=>{const v=e.target.value;clearTimeout(timer);timer=setTimeout(async()=>{S.q=v;S.page=1;await render();const s=$('#search');s?.focus();s?.setSelectionRange(v.length,v.length);},280);};$('#category').onchange=async e=>{S.category=e.target.value;S.page=1;await render();};}
+function bindSearch(){let timer;$('#search').oninput=e=>{const v=e.target.value;clearTimeout(timer);timer=setTimeout(async()=>{S.q=v;S.page=1;await render();const s=$('#search');s?.focus();s?.setSelectionRange(v.length,v.length);},280);};}
 
 async function printCatalog(){
   const first=await api('/catalog?page=1&page_size=10');let rows=[...first.items];
@@ -132,11 +140,12 @@ function showIssues(issues,page=1){
 }
 
 document.addEventListener('click',async event=>{
-  if(S.savingCounts&&event.target.closest('[data-nav],[data-action]')){event.preventDefault();return;}
+  if((S.savingCounts||S.savingSales)&&event.target.closest('[data-nav],[data-action]')){event.preventDefault();return;}
   const nav=event.target.closest('[data-nav]');if(nav){if($('#dialog').open){if(S.dialogDirty&&!confirm('尚未儲存，確定離開？'))return;closeDialog(true);}await navigate(nav.dataset.nav);return;}
   const b=event.target.closest('[data-action]');if(!b||b.disabled)return;
   try{switch(b.dataset.action){
     case 'page':S.page=Number(b.dataset.page);await render();$('#main').scrollTop=0;break;
+    case 'category-filter':S.category=S.category===b.dataset.category?'':b.dataset.category;S.page=1;await render();break;
     case 'photo-filter':S.photos=b.dataset.photos;S.page=1;await render();break;
     case 'filter':S.status=b.dataset.status;S.page=1;await render();break;
     case 'filter-dashboard':await navigate('inventory',{status:b.dataset.status});break;
@@ -159,8 +168,8 @@ document.addEventListener('click',async event=>{
 
 $('#dialog-close').onclick=()=>closeDialog();$('#dialog').addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
 $('#dialog-body').addEventListener('input',()=>S.dialogDirty=true);
-$('#settings').onclick=()=>{if(!S.savingCounts)dataManager();};
-$('#logout').onclick=async()=>{if(S.savingCounts)return;if(hasStocktakeDrafts()&&!confirm('盤點尚未儲存，確定登出並捨棄已填數量？'))return;const state=await api('/logout',{});S.csrf=state.csrf;clearStocktakeDrafts();showAuth(state);};
+$('#settings').onclick=()=>{if(!S.savingCounts&&!S.savingSales)dataManager();};
+$('#logout').onclick=async()=>{if(S.savingCounts||S.savingSales)return;if((hasStocktakeDrafts()||hasSalesDraft())&&!confirm('有尚未儲存的盤點或銷售單，確定登出？銷售單草稿會保留在此分頁。'))return;const state=await api('/logout',{});S.csrf=state.csrf;clearStocktakeDrafts();showAuth(state);};
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(S.meta)render();},180);});
 
 function showAuth(state){$('#app').hidden=true;$('#auth-screen').hidden=false;$('#auth-title').textContent=state.setup_required?'建立管理密碼':'登入工作台';$('#auth-copy').textContent=state.setup_required?'第一次使用，設定至少 10 個字元的密碼。':'輸入密碼，開始今天的庫存管理。';$('#password').value='';$('#password').minLength=state.setup_required?10:1;$('#password').autocomplete=state.setup_required?'new-password':'current-password';
