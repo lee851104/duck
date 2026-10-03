@@ -61,6 +61,21 @@ class ShopTest(unittest.TestCase):
     def transition(self,oid,action,key=None):
         return self.admin.post(f'/api/customer-orders/{oid}/transition',json={'action':action,'request_id':key or str(uuid4())},headers=self.headers)
 
+    def test_google_mode_guests_order_without_login_but_require_contact_details(self):
+        self.app.config['AUTH_MODE'] = 'google'
+        selection = self.selection()
+        quote = self.post('quote', selection).get_json()
+        body = {**selection, 'quote_revision': quote['revision'], 'request_id': str(uuid4()),
+                'name': '測試客人', 'phone': '0912345678', 'pickup_date': '2026-10-02',
+                'pickup_slot': '10:00–12:00'}
+        for field in ['name', 'phone', 'pickup_date', 'pickup_slot']:
+            invalid = {**body, field: ''}
+            self.assertEqual(self.post('orders', invalid).status_code, 400)
+        self.assertEqual(self.post('orders', {**body, 'phone': 'not-a-phone'}).status_code, 400)
+        self.assertEqual(self.post('orders', body).status_code, 201)
+        self.assertFalse(self.guest.get('/api/session').get_json()['authenticated'])
+        self.assertEqual(self.guest.get('/api/customer-orders').status_code, 401)
+
     def test_public_projection_and_three_recipes(self):
         self.assertEqual(self.guest.get('/shop').status_code,200)
         data=self.guest.get('/api/shop/catalog').get_json()

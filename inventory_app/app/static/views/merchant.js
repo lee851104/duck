@@ -103,6 +103,13 @@ export async function renderExports(){
   clearTimeout(exportTimer);
   const state=await api('/excel-sync');
   if(S.view!=='exports')return;
+  if(state.cloud){
+    const last=state.last;
+    $('#main').innerHTML=`<div class="page-heading"><div><p class="eyebrow">菜騎鴨 · Excel 備援</p><h1>匯出庫存管理表</h1><p class="muted">下載時依雲端最新資料產生，未知數值保留空白。</p></div></div>
+      <section class="panel inventory-export-panel"><h2>庫存管理表</h2><p>包含所有商品與批次的進價、售價、數量及效期。</p><a class="primary" href="/api/inventory-export/download">下載庫存管理表 Excel</a></section>
+      <section class="panel inventory-export-panel"><h2>每日三份 Excel 備援</h2><p>結帳後下載整包 ZIP，解壓縮後可取得同一時間的庫存管理表、商品價目表與發票系統表。價目表保留原照片與版型，已確認商品連動售價。</p><a class="primary" href="/api/excel-backup/download">下載三份 Excel 備援</a><p class="draft-note">照片檔較大，首次準備可能需要稍候。請每天將最新三份檔案存到店內電腦，網站故障時即可繼續使用 Excel。Excel 手動修改不會回寫系統。</p><p role="status">${state.error?esc(state.error):last?'本次服務最近產生時間：'+esc(last.created_at.slice(0,19).replace('T',' ')):'下載時會產生最新資料。'}</p></section>`;
+    return;
+  }
   const busy=state.pending||state.running,last=state.last,ready=last&&!busy&&!state.error;
   $('#main').innerHTML=`<div class="page-heading"><div><p class="eyebrow">菜騎鴨 · 本機 Excel</p><h1>匯出庫存管理表</h1><p class="muted">平常在系統記錄銷售、盤點與改價，Excel 由系統更新。</p></div></div>
     <section class="panel inventory-export-panel"><h2>庫存管理表</h2><p>完整匯出所有商品與批次，包含進價、售價、數量及效期。未知數值保留空白；同商品不同批次分列。</p><button id="download-inventory" class="primary" ${ready?'':'disabled'}>下載庫存管理表 Excel</button><p class="draft-note">下載的是最後同步完成的資料；Excel 內的手動修改不會回寫系統。</p></section>

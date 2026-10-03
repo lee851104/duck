@@ -134,6 +134,21 @@ class ExcelSync:
             except Exception:
                 logging.getLogger(__name__).exception('Local Excel synchronization failed')
 
+    def snapshot(self):
+        snapshot = connect_db(':memory:')
+        source_db = sqlite3.connect(f"file:{Path(self.app.config['DB_PATH']).as_posix()}?mode=ro", uri=True)
+        try:
+            source_db.backup(snapshot)
+        finally:
+            source_db.close()
+        return snapshot
+
+    def template(self):
+        templates = list(Path(self.app.config['SOURCE_DIR']).glob('*價目表*.xlsx'))
+        if len(templates) != 1:
+            raise ValueError('原始資料夾需保留一份商品價目表 Excel')
+        return templates[0]
+
     def sync_once(self):
         with self.build_lock:
             with self.lock:
@@ -141,20 +156,15 @@ class ExcelSync:
                 self.pending = False
                 self.running = True
                 self.error = None
-            snapshot = connect_db(':memory:')
+            snapshot = None
             folder = None
             try:
-                source_db = sqlite3.connect(f"file:{Path(self.app.config['DB_PATH']).as_posix()}?mode=ro", uri=True)
-                try:
-                    source_db.backup(snapshot)
-                finally:
-                    source_db.close()
+                snapshot = self.snapshot()
                 day = date.fromisoformat(self.app.config.get('TODAY') or now()[:10])
                 revision = snapshot_revision(snapshot, day)
-                templates = list(Path(self.app.config['SOURCE_DIR']).glob('*價目表*.xlsx'))
-                if len(templates) != 1:
-                    raise ValueError('原始資料夾需保留一份商品價目表 Excel')
-                source_hash = hashlib.sha256(templates[0].read_bytes()).hexdigest()
+                template = self.template()
+                with template.open('rb') as source:
+                    source_hash = hashlib.file_digest(source, 'sha256').hexdigest()
                 if (self.last and self.last['revision'] == revision and self.last['source_sha256'] == source_hash
                         and all((Path(self.last['folder'])/name).is_file() for name in FILENAMES.values())):
                     return self.last
@@ -165,7 +175,7 @@ class ExcelSync:
                 folder = self.root/(now()[:19].replace(':', '').replace('T', '_')+'_'+uuid4().hex[:8])
                 folder.mkdir()
                 count = write_inventory_xlsx(snapshot, folder/FILENAMES['inventory'], day)
-                linked = write_catalog(snapshot, templates[0], folder/FILENAMES['catalog'])
+                linked = write_catalog(snapshot, template, folder/FILENAMES['catalog'])
                 write_xlsx(folder/FILENAMES['invoice'], rows)
                 result = {'created_at': now(), 'revision': revision, 'source_sha256': source_hash,
                           'folder': str(folder), 'files': FILENAMES, 'batch_count': count,
@@ -186,7 +196,8 @@ class ExcelSync:
                     self._remove(folder)
                 raise
             finally:
-                snapshot.close()
+                if snapshot is not None:
+                    snapshot.close()
                 with self.lock:
                     self.running = False
 

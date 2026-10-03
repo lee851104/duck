@@ -1,5 +1,7 @@
 import secrets
 import sqlite3
+import os
+import json
 from pathlib import Path
 
 from flask import Flask, jsonify, request, session
@@ -16,9 +18,23 @@ def create_app(config=None):
     root = Path(__file__).resolve().parent.parent
     app.config.update(DATA_DIR=root/'data', MAX_CONTENT_LENGTH=200*1024*1024,
                       SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Strict')
+    auth_keys = ('AUTH_MODE', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'GOOGLE_ADMIN_EMAIL')
+    for key in auth_keys:
+        app.config[key] = os.environ.get(key, 'password' if key == 'AUTH_MODE' else '')
     app.config.update(config or {})
+    from .cloud_config import configure_cloud
+    configure_cloud(app, config or {})
+    cloud = app.config['CLOUD_MODE']
     data = Path(app.config['DATA_DIR'])
     data.mkdir(parents=True, exist_ok=True)
+    auth_file = data/'auth-config.json'
+    if not cloud and auth_file.exists():
+        auth_config = json.loads(auth_file.read_text('utf-8'))
+        if not isinstance(auth_config, dict) or any(k not in auth_keys or not isinstance(v, str) for k, v in auth_config.items()):
+            raise ValueError('auth-config.json must contain only supported string-valued auth settings')
+        for key, value in auth_config.items():
+            if key not in os.environ and key not in (config or {}):
+                app.config[key] = value
     for name in ('media', 'staging', 'exports'):
         (data/name).mkdir(exist_ok=True)
     key_file = data/'secret.key'
@@ -30,20 +46,36 @@ def create_app(config=None):
     app.config['DB_PATH'] = data/'inventory.sqlite3'
     app.config.setdefault('SOURCE_DIR', root.parent/('raw_data' if (root.parent/'raw_data').is_dir() else '原始資料'))
     app.config.setdefault('BACKUP_DIR', root/'backups')
-    conn = connect_db(app.config['DB_PATH'])
-    init_db(conn)
-    from .shop_catalog import initialize_shop
-    initialize_shop(conn)
-    conn.close()
+    if not cloud:
+        conn = connect_db(app.config['DB_PATH'])
+        try:
+            init_db(conn)
+            from .shop_catalog import initialize_shop
+            initialize_shop(conn)
+        finally:
+            conn.close()
     app.teardown_appcontext(close_db)
     app.before_request(guard)
     app.register_blueprint(auth)
+    from .google_auth import google_auth, init_google
+    init_google(app)
+    app.register_blueprint(google_auth)
     from .api import api
     app.register_blueprint(api)
     from .shop_api import shop
     app.register_blueprint(shop)
     from .excel_sync import ExcelSync
-    app.extensions['excel_sync'] = ExcelSync(app)
+    from .cloud_excel import CloudExcelSync
+    app.extensions['excel_sync'] = CloudExcelSync(app) if cloud else ExcelSync(app)
+
+    @app.get('/health')
+    def health():
+        try:
+            # Verify the migrated schema too, without creating or modifying it.
+            get_db().execute('SELECT COUNT(*) FROM metadata').fetchone()
+        except sqlite3.Error:
+            return jsonify(status='unavailable'), 503
+        return jsonify(status='ok')
 
     @app.errorhandler(Problem)
     def problem(error):
@@ -64,7 +96,7 @@ def create_app(config=None):
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Referrer-Policy'] = 'same-origin'
         response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'"
-        if request.path.startswith('/api/'):
+        if request.path.startswith(('/api/', '/auth/')):
             response.headers['Cache-Control'] = 'no-store'
         # Only committed writes schedule a snapshot; errors and preview requests
         # must not publish partial or hypothetical inventory changes.

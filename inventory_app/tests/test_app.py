@@ -10,7 +10,7 @@ class AppTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.app = create_app({'TESTING': True, 'DATA_DIR': Path(self.tmp.name),
-                               'SECRET_KEY': 'test-only', 'TODAY': '2026-10-01'})
+                               'SECRET_KEY': 'test-only', 'TODAY': '2026-10-01', 'AUTH_MODE': 'password'})
         self.client = self.app.test_client()
 
     def login(self):

@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import openpyxl
@@ -65,3 +66,14 @@ class ExportTest(unittest.TestCase):
         wb=openpyxl.load_workbook(self.root/'exports'/result['filename'],read_only=True)
         self.assertEqual(list(wb.active.values)[1][3],45)
         wb.close()
+
+    def test_latest_export_marker_tracks_last_successful_export(self):
+        from app.exports import build_invoice_xlsx
+        with patch('app.exports.uuid4') as new_id:
+            new_id.return_value.hex = 'ffffffffffffffffffffffffffffffff'
+            first = build_invoice_xlsx(self.conn, self.root/'exports')
+            new_id.return_value.hex = '00000000000000000000000000000000'
+            last = build_invoice_xlsx(self.conn, self.root/'exports')
+        marker = self.conn.execute("SELECT value FROM metadata WHERE key='latest_invoice_export'").fetchone()
+        self.assertIsNotNone(marker)
+        self.assertEqual(marker[0], last['export_id'])

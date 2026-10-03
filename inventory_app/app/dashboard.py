@@ -3,15 +3,19 @@ from datetime import date
 from decimal import Decimal
 
 from .common import decimal_text, now, paginate
-from .reservations import reserved_quantity
 from .catalog_order import product_key
 
 
 def products_with_stock(conn, today):
+    reserved = {}
+    for row in conn.execute('''SELECT r.batch_id,r.quantity FROM reservations r
+        JOIN customer_orders o ON o.id=r.order_id
+        WHERE o.status IN ('confirmed','ready') AND o.hold_until>=?''', (now(),)):
+        reserved[row['batch_id']] = reserved.get(row['batch_id'], Decimal(0)) + Decimal(row['quantity'])
     batches = {}
     for row in conn.execute('SELECT * FROM batches ORDER BY expires_on IS NULL,expires_on,id'):
         b = dict(row)
-        b['reserved_quantity'] = decimal_text(reserved_quantity(conn,b['id']))
+        b['reserved_quantity'] = decimal_text(reserved.get(b['id'], Decimal(0)))
         b['expired'] = bool(b['expires_on'] and b['expires_on'] < today.isoformat())
         b['days_left'] = (date.fromisoformat(b['expires_on']) - today).days if b['expires_on'] else None
         batches.setdefault(b['product_id'], []).append(b)

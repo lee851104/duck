@@ -1,0 +1,15 @@
+**
+!Dockerfile
+!requirements.txt
+!cloud.py
+!app/
+!app/**
+!tools/
+!tools/*.py
+**/__pycache__/**
+**/*.pyc
+**/.env*
+**/*.key
+**/*.pem
+**/*.sqlite*
+**/*.db
