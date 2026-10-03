@@ -94,6 +94,8 @@ LINE 訂單按「已完成」後，到「每日銷售單」按「從 LINE 接單
 
 ### 設定 OpenAI 金鑰
 
+雲端版的 Secret Manager 設定與換金鑰步驟，見 [Cloud Run OpenAI 金鑰教學](docs/openai-cloud-run.md)。
+
 1. 到 <https://platform.openai.com/api-keys> 建立金鑰，帳戶需有 API credits。
 2. 用記事本新增檔案，只貼上金鑰一行，存成 `inventory_app\data\openai-key.txt`。`data` 資料夾不進 Git，金鑰也不會放進系統備份。
 3. 到「LINE 接單」按「測試連線」。放好金鑰不必重新啟動。

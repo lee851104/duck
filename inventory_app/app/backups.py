@@ -156,7 +156,10 @@ def dump_postgres(config, destination):
         env = {key:value for key,value in os.environ.items() if not key.startswith('PG')}
         env.update(PGSERVICEFILE=str(service), PGSERVICE='duck_backup')
         try:
+            # The runtime role reads every application row through its RLS policy,
+            # without BYPASSRLS. INSERT data also supports restoring with RLS on.
             subprocess.run([config.get('PG_DUMP_BIN', 'pg_dump'), '--format=custom', '--no-owner', '--no-acl',
+                '--enable-row-security', '--inserts',
                 '--schema='+schema, '--file='+str(destination)], env=env, check=True, capture_output=True, timeout=300)
         except (OSError, subprocess.SubprocessError):
             raise Problem('資料庫備份失敗；請確認相容版本 pg_dump、備份帳號權限及連線設定', code='backup', status=503) from None

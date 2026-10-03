@@ -16,10 +16,11 @@ $settings = Get-Content -LiteralPath $EnvFile -Raw | ConvertFrom-Json
 $refs = Get-Content -LiteralPath $SecretVersionsFile -Raw | ConvertFrom-Json
 $required = @('DATABASE_URL','SECRET_KEY','GOOGLE_CLIENT_SECRET','SUPABASE_SERVICE_KEY')
 $secretArgs = @()
-foreach ($key in $required) {
+foreach ($key in ($required + @('OPENAI_API_KEY'))) {
     $reference = $refs.$key
-    if ($reference -notmatch '^[a-zA-Z0-9_-]+:[1-9][0-9]*$') { throw "Missing or invalid pinned secret reference: $key" }
     if ($settings.PSObject.Properties.Name -contains $key) { throw "Secret $key must not be placed in EnvFile" }
+    if ($key -eq 'OPENAI_API_KEY' -and -not $reference) { continue }
+    if ($reference -notmatch '^[a-zA-Z0-9_-]+:[1-9][0-9]*$') { throw "Missing or invalid pinned secret reference: $key" }
     $secretArgs += "$key=$reference"
 }
 if ($settings.CLOUD_MODE -ne 'true' -or $settings.STORAGE_BACKEND -ne 'supabase' -or $settings.AUTH_MODE -ne 'google') {
@@ -29,7 +30,7 @@ $serviceAccount = "duck-runtime@$Project.iam.gserviceaccount.com"
 $accessFlag = if ($Private) { '--no-allow-unauthenticated' } else { '--allow-unauthenticated' }
 & $Gcloud run deploy $Service "--project=$Project" "--region=$Region" "--source=$source" `
     "--build-service-account=projects/$Project/serviceAccounts/duck-build@$Project.iam.gserviceaccount.com" `
-    "--service-account=$serviceAccount" "--env-vars-file=$EnvFile" "--set-secrets=$($secretArgs -join ',')" `
+    "--service-account=$serviceAccount" "--env-vars-file=$EnvFile" "--update-secrets=$($secretArgs -join ',')" `
     $accessFlag --min=0 --max=1 --min-instances=0 --max-instances=1 `
     --cpu=1 --memory=1Gi --concurrency=4 --timeout=300 --port=8080 `
     --cpu-throttling --no-cpu-boost `

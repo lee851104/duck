@@ -1,5 +1,17 @@
 # Cloud Run 上線紀錄與操作
 
+## 2026-10-03 LINE 接單雲端升級
+
+以 `262e8be` 的 LINE 接單、每日銷售帶入與日期摺疊介面部署。先建立零正式流量候選版本，核對健康、匿名管理 API 被拒與前端檔案雜湊後切換流量。正式網址沿用不變。
+
+- 升級前 `duck-backup-spbz9` 備份成功。新增遷移 `003_line_orders.sql`、`004_line_order_sales.sql`、`005_line_order_edits.sql`，checksum 逐檔相符；沒有匯入本機營運資料。商品 173 筆、批次 176 筆維持一致。
+- 六張 LINE 資料表位於私有 `duck` schema，均啟用 RLS；`duck_runtime_access` 政策僅允許既有 `duck_runtime` 使用，`anon` 和 `authenticated` 沒有表格 SELECT 權。一次性部署 SQL 為 `deploy/line-orders-rls.sql`，適用本專案既有 runtime role；不要直接重跑已存在的 CREATE POLICY。
+- OpenAI 新金鑰透過安全建立流程產生，Cloud Run 引用 `OPENAI_API_KEY=duck-openai-api-key:1`，`OPENAI_MODEL=gpt-6-luna`；只有既有服務帳號取得此 Secret 的讀取權。
+- 正式登入後 LINE 接單、每日銷售頁面載入成功，從網站按「測試連線」顯示 OpenAI 連線成功。另用新金鑰與正式 JSON Schema 轉換一筆虛構訂單，1166 input tokens、147 output tokens；未匯入真實聊天或寫入正式訂單。
+- 本機測試 194 項，188 通過、6 項需專用 migrator 的整合測試略過。RLS 備份相容性修正後，18 項備份測試全數通過。
+- `pg_dump` 使用 `--enable-row-security --inserts`，配合 runtime 可讀取全部應用資料列的 RLS 政策，無須授予 BYPASSRLS。日後若改成逐列篩選政策，須重新驗證備份完整性；還原以管理員在隔離空白資料庫執行，並重設 runtime 權限。
+- 原有 1 CPU、1 GiB、最少 0／最多 1 執行個體及 US$10 Cloud Run 上限保留。金鑰更新教學見 [Cloud Run OpenAI 金鑰](openai-cloud-run.md)。
+
 ## 2026-10-03 支出上限調整
 
 依使用者要求，已於 Google Cloud 控制台將 `duck-inventory` 專案的 Cloud Run 每月支出上限由 US$5 調整為 **US$10**，儲存後清單確認「已設定」。名稱為「Cloud Run 每月 US$10 暫停」。
