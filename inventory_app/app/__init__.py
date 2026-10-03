@@ -16,7 +16,7 @@ from .products import create_product
 def create_app(config=None):
     app = Flask(__name__)
     root = Path(__file__).resolve().parent.parent
-    app.config.update(DATA_DIR=root/'data', MAX_CONTENT_LENGTH=200*1024*1024,
+    app.config.update(DATA_DIR=root/'data', MAX_CONTENT_LENGTH=200*1024*1024, ENABLE_LINE_ORDERS=False,
                       SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Strict')
     auth_keys = ('AUTH_MODE', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'GOOGLE_ADMIN_EMAIL')
     for key in auth_keys:
@@ -56,6 +56,13 @@ def create_app(config=None):
             conn.close()
     app.teardown_appcontext(close_db)
     app.before_request(guard)
+    @app.before_request
+    def disabled_line_orders():
+        if (not app.config['ENABLE_LINE_ORDERS'] and
+                (request.path.startswith('/api/line-orders') or
+                 request.path.startswith('/api/daily-sales/line-orders'))):
+            raise Problem('LINE 接單模組已停用', status=404)
+
     app.register_blueprint(auth)
     from .google_auth import google_auth, init_google
     init_google(app)
@@ -105,7 +112,7 @@ def create_app(config=None):
         if (request.method in {'POST', 'PATCH', 'PUT', 'DELETE'} and response.status_code < 300
                 and request.path.startswith('/api/')
                 and request.path not in {'/api/login', '/api/logout', '/api/setup',
-                    '/api/daily-sales/preview', '/api/daily-sales/line-orders/excel',
+                    '/api/daily-sales/preview', '/api/daily-sales/line-orders/excel', '/api/daily-sales/excel', '/api/daily-sales/export',
                     '/api/excel-sync', '/api/invoice-exports'}
                 and not request.path.startswith(('/api/imports/preview', '/api/line-orders'))):
             app.extensions['excel_sync'].request()

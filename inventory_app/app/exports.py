@@ -56,23 +56,37 @@ def write_xlsx(path, rows, headers=None, sheet_name='易發票系統', numeric_c
     numeric_columns = {3, 5, 6} if numeric_columns is None else numeric_columns
     ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
     sheet = Element('worksheet', xmlns=ns)
-    if sheet_name == '庫存管理':
+    styled = sheet_name in {'庫存管理', '銷售明細'}
+    sales = sheet_name == '銷售明細'
+    if styled:
         views = SubElement(sheet, 'sheetViews')
         view = SubElement(views, 'sheetView', workbookViewId='0')
+        if sales:
+            view.set('showGridLines', '0')
         SubElement(view, 'pane', ySplit='1', topLeftCell='A2', activePane='bottomLeft', state='frozen')
         cols = SubElement(sheet, 'cols')
-        for i, width in enumerate([17, 19, 17, 38, 10, 14, 14, 16, 16, 14, 30, 14, 14, 12], 1):
+        widths = [15, 16, 36, 14, 10, 22, 14, 60] if sales else [17, 19, 17, 38, 10, 14, 14, 16, 16, 14, 30, 14, 14, 12]
+        for i, width in enumerate(widths, 1):
             SubElement(cols, 'col', min=str(i), max=str(i), width=str(width), customWidth='1')
     data = SubElement(sheet, 'sheetData')
     for r, values in enumerate([headers]+rows, 1):
         row = SubElement(data, 'row', r=str(r))
-        if sheet_name == '庫存管理':
+        if styled:
             row.set('ht', '30' if r == 1 else '25')
+            if sales and r > 1:
+                import math
+                lines = max(sum(max(1, math.ceil(len(part) / 28)) for part in str(values[7]).split('\n')),
+                            math.ceil(len(str(values[2])) / 16))
+                row.set('ht', str(min(409, max(30, lines * 16))))
             row.set('customHeight', '1')
         for col, value in enumerate(values):
             attrs = {'r': f'{chr(65+col)}{r}'}
-            if sheet_name == '庫存管理' and r == 1:
+            if styled and r == 1:
                 attrs['s'] = '1'
+            elif sales:
+                attrs['s'] = '2' if col == 0 else '3' if col == 3 else '4'
+                if col == 3 and Decimal(str(value)) == Decimal(str(value)).to_integral_value():
+                    attrs['s'] = '5'
             if value is None:
                 SubElement(row, 'c', attrs)
                 continue
@@ -82,18 +96,19 @@ def write_xlsx(path, rows, headers=None, sheet_name='易發票系統', numeric_c
                 SubElement(c, 'v').text = str(value)
             else:
                 SubElement(SubElement(c, 'is'), 't').text = '' if value is None else str(value)
-    if sheet_name == '庫存管理':
-        SubElement(sheet, 'autoFilter', ref=f'A1:N{len(rows)+1}')
+    if styled:
+        SubElement(sheet, 'autoFilter', ref=f'A1:{chr(64+len(headers))}{len(rows)+1}')
     with ZipFile(path, 'w', ZIP_DEFLATED) as z:
         z.writestr('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>')
         z.writestr('_rels/.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
         z.writestr('xl/workbook.xml', f'<workbook xmlns="{ns}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="{sheet_name}" sheetId="1" r:id="rId1"/></sheets></workbook>')
         z.writestr('xl/_rels/workbook.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>')
         z.writestr('xl/styles.xml', f'''<styleSheet xmlns="{ns}">
+            <numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy-mm-dd"/><numFmt numFmtId="165" formatCode="0.######"/></numFmts>
             <fonts count="2"><font><sz val="11"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Microsoft JhengHei"/></font></fonts>
             <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF365F3E"/><bgColor indexed="64"/></patternFill></fill></fills>
             <borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-            <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs>
+            <cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="1" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs>
             <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>''')
         z.writestr('xl/worksheets/sheet1.xml', tostring(sheet, encoding='utf-8', xml_declaration=True))
 

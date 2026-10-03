@@ -101,7 +101,10 @@ def _apply_count_stock(conn, command, actor_id):
     protect_reserved(conn,b['id'],qty,expiry,saleable)
     conn.execute('UPDATE batches SET quantity=?,expires_on=?,saleable=?,version=version+1 WHERE id=?',
                  (decimal_text(qty), expiry, saleable, b['id']))
-    mid = record(conn, p['id'], b['id'], 'count', '盤點調整', b['quantity'], decimal_text(qty), actor_id)
+    reason = '盤點調整'
+    if int(saleable) != int(b['saleable']):
+        reason += '・確認可售' if saleable else '・改為不可售'
+    mid = record(conn, p['id'], b['id'], 'count', reason, b['quantity'], decimal_text(qty), actor_id)
     return {'batch_id': b['id'], 'movement_ids': [mid]}
 
 
@@ -122,8 +125,10 @@ def bulk_count_stock(conn, command, actor_id):
         if type(bid) is not int or bid < 1 or bid in seen:
             raise Problem('盤點批次無效或重複')
         seen.add(bid)
-        if set(item) - {'batch_id', 'actual_quantity', 'expected_version'}:
-            raise Problem('集中盤點只調整數量，其他資料請至商品明細修改')
+        # 集中盤點可以順便確認可售（效期未知也可以），但不在這裡改效期或改成不可售。
+        if set(item) - {'batch_id', 'actual_quantity', 'expected_version', 'saleable_confirmed'} or (
+                'saleable_confirmed' in item and item['saleable_confirmed'] is not True):
+            raise Problem('集中盤點只調整數量或確認可售，其他資料請至商品明細修改')
 
     def apply():
         results = []

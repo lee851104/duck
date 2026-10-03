@@ -58,7 +58,7 @@ def daily_sale_products():
     for p in get_db().execute('SELECT id,code,name,unit,category,image FROM products'):
         rows.append({**dict(p), 'available': decimal_text(sum(
             (b['available'] for b in eligible_batches(get_db(), p['id'], day)), Decimal(0)))})
-    return jsonify(items=sorted(rows, key=product_key))
+    return jsonify(items=sorted(rows, key=product_key), today=today().isoformat())
 
 
 @api.post('/api/daily-sales/preview')
@@ -94,12 +94,33 @@ def daily_sale_line_excel():
     return jsonify(orders=orders, skipped=skipped, source=upload.filename)
 
 
+@api.post('/api/daily-sales/excel')
+def daily_sale_excel():
+    """獨立 Excel 預覽，不建立訂單、不扣庫存。"""
+    from .sales_excel import preview_excel
+    upload = request.files.get('file')
+    if not upload or not upload.filename or not upload.filename.lower().endswith('.xlsx'):
+        raise Problem('請選擇 .xlsx 格式的銷售明細')
+    return jsonify(preview_excel(get_db(), upload.stream, upload.filename, request.form.get('sold_on')))
+
+
 @api.get('/api/daily-sales')
 def daily_sale_history():
     rows = [dict(r) for r in get_db().execute('''SELECT d.*,
         (SELECT COUNT(*) FROM daily_sale_lines l WHERE l.sheet_id=d.id) AS item_count
         FROM daily_sales d ORDER BY sold_on DESC,id DESC''')]
     return jsonify(paginate(rows, *page_args()))
+
+
+@api.post('/api/daily-sales/export')
+@api.get('/api/daily-sales/<int:sid>/excel')
+def export_daily_sale(sid=None):
+    from .sales_export import export_sales
+    with transaction(get_db()):
+        output, filename = export_sales(get_db(), today(),
+                                        command=request.get_json() if sid is None else None, sid=sid)
+    return send_file(output, as_attachment=True, download_name=filename,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', max_age=0)
 
 
 @api.get('/api/daily-sales/<int:sid>')

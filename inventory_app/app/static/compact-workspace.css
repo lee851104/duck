@@ -1,0 +1,171 @@
+/* Dense shop workbench: leave the vertical space to products and quantities. */
+.filter-icon{width:15px;height:15px;flex:0 0 15px;pointer-events:none}
+.merchant-toolbar .filters button{display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.topbar{height:46px;padding:0 22px}
+.app-footer{height:24px;padding:0 22px}
+#main[data-view="inventory"],#main[data-view="daily-sales"]{padding:14px 20px 20px;gap:12px}
+#main:is([data-view="inventory"],[data-view="daily-sales"]) .page-heading{align-items:center;gap:10px}
+#main:is([data-view="inventory"],[data-view="daily-sales"]) .page-heading h1{font-size:24px;line-height:1.35}
+#main:is([data-view="inventory"],[data-view="daily-sales"]) .page-heading .muted{font-size:12px;margin-top:2px}
+.merchant-heading>div:first-child{margin-right:auto}
+.merchant-mode{gap:5px}
+.merchant-mode button,.merchant-heading>button{padding:6px 12px;min-height:34px;font-size:13px}
+.merchant-toolbar{gap:8px}
+.merchant-toolbar .search-box{flex:1 1 220px;max-width:none}
+.merchant-toolbar .search-box input,.sales-filters>input{padding-top:8px;padding-bottom:8px;font-size:13px}
+.merchant-toolbar .search-box:before{top:3px}
+.merchant-toolbar .filters{order:1;gap:5px}
+.merchant-toolbar .filters button{min-height:34px;padding:5px 10px;font-size:12px}
+.merchant-toolbar .category-filter{order:2}
+#main:is([data-view="inventory"],[data-view="daily-sales"]) .category-filter{display:flex;align-items:flex-start;gap:8px}
+#main:is([data-view="inventory"],[data-view="daily-sales"]) .category-filter-heading{flex-shrink:0;margin:0;padding-top:7px}
+#main:is([data-view="inventory"],[data-view="daily-sales"]) .category-filter-heading strong{font-size:12px}
+#main:is([data-view="inventory"],[data-view="daily-sales"]) .category-filter-heading small{display:none}
+#main:is([data-view="inventory"],[data-view="daily-sales"]) .category-buttons{gap:5px}
+#main:is([data-view="inventory"],[data-view="daily-sales"]) .category-buttons button{min-height:31px;padding:4px 9px;font-size:12px;border-radius:6px;gap:4px}
+.sales-stamp{padding:6px 12px;font-size:12px}
+.sales-layout{grid-template-columns:minmax(0,1.15fr) minmax(350px,1fr);gap:14px;height:clamp(470px,calc(100dvh - 164px),850px);align-items:stretch}
+.sales-layout .panel-head,.sales-history .panel-head{padding:10px 14px}
+.sales-layout h2,.sales-history h2{font-size:16px}
+.sales-filters{padding:10px 12px;gap:8px}
+.sales-photo-note{padding:6px 12px;font-size:11px;line-height:1.5}
+.sales-products{max-height:none;flex:1;min-height:0;padding:4px 6px;scrollbar-gutter:stable;overscroll-behavior:contain}
+.sales-product{gap:10px;padding:7px 8px;border-radius:7px}
+.sales-product .product-image{width:42px;height:42px}
+.sales-product strong{font-size:14px;line-height:1.4}
+.sales-product small,.sales-line small{font-size:11px;margin-top:2px}
+.sales-sheet-body{padding:12px 14px;overflow:auto;scrollbar-gutter:stable}
+.ls-strip{padding:7px 9px;margin:0 0 10px;border-radius:8px;gap:5px}
+.ls-strip-text{font-size:11px}.ls-strip-text strong{font-size:12px}
+.ls-strip-tools button{min-height:32px;padding:4px 8px;font-size:12px}
+.sales-date{gap:12px;margin-bottom:10px}
+.sales-date label{flex-direction:row;align-items:center;gap:8px;white-space:nowrap;font-size:12px}
+.sales-date input{padding:6px 8px;width:auto;flex:1}
+.sales-date p{font-size:11px}
+.sales-line{padding:8px 0;gap:7px}
+.sales-line strong{font-size:14px}
+.sales-line input{font-size:17px;padding:6px 3px}
+.sales-sheet textarea{margin-top:0;padding:7px 9px}
+.sales-rule{font-size:11px;line-height:1.65;margin:9px 0}
+.sales-sheet #sales-preview{padding:10px;font-size:15px;margin:6px 0}
+.sales-sheet .draft-note{font-size:11px;margin:2px 0 0}
+.sales-empty{padding:22px 12px;font-size:13px}
+.sales-history{margin-top:0}
+.sales-history-row{padding:10px 14px;gap:12px}
+.sales-history-row strong{font-size:14px}
+.sales-history-row small{font-size:11px;margin-top:2px}
+.merchant-grid{gap:12px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.merchant-card{border-radius:10px}
+.merchant-photo{aspect-ratio:1.25;max-height:180px}
+.merchant-card-info{padding:10px 12px;gap:5px}
+.merchant-name{font-size:14px;line-height:1.45}
+.merchant-price{font-size:20px}
+.merchant-stock,.merchant-stock small{font-size:12px}
+#main:has(#stocktake-form){gap:12px}
+.stocktake-caption{padding:8px 12px;margin-bottom:10px;font-size:12px;border-radius:8px}
+.stocktake-caption strong{font-size:13px}.stocktake-caption p{margin-top:2px}
+.stocktake-cards{gap:12px}
+.stocktake-card{border-radius:10px}
+.stocktake-product{padding:10px 12px;gap:10px}
+.stocktake-photo{width:52px;height:52px}
+.stocktake-product h2{font-size:16px;line-height:1.4}
+.stocktake-product p{font-size:12px;margin-top:3px}
+.count-batch{padding:10px 12px}
+.count-batch-heading{font-size:12px;gap:5px}
+.count-details{font-size:12px;min-height:32px;padding:4px 8px}
+.count-book{font-size:12px;margin:5px 0}.count-book strong{font-size:15px}
+.count-warning,.count-reserved{padding:5px 8px;font-size:12px;margin:5px 0}
+.count-label{font-size:13px;margin:6px 0}
+.count-stepper{gap:6px}
+.count-stepper>button{width:44px;min-width:44px;height:44px;font-size:23px}
+.count-input-wrap input{height:44px;font-size:22px;border-width:1px}
+.count-input-wrap input::placeholder{font-size:15px}
+.count-shortcuts{gap:5px;margin-top:6px}
+.count-shortcuts button{min-height:34px;padding:5px 7px;font-size:12px}
+.count-shortcuts button[data-count-command=clear]{min-height:34px}
+.count-feedback{font-size:12px;margin-top:6px;min-height:19px}
+.stocktake-save{bottom:-20px;padding:9px 12px;min-height:62px;margin-top:12px;border-radius:10px}
+.stocktake-save #save-stocktake{min-height:40px;padding:8px 16px;font-size:14px}
+.stocktake-save small{margin-top:3px}
+.sales-submit-actions{display:flex;align-items:center;gap:8px;margin:6px 0}
+.sales-submit-actions #sales-export{min-height:44px;padding:10px 14px;flex-shrink:0;color:var(--green)}
+.sales-sheet .sales-submit-actions #sales-preview{flex:1;width:auto;margin:0}
+.sales-detail-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sales-detail-tools .notice{flex:1}
+/* Header, filters and pagination stay outside the independently scrolling list. */
+#main[data-view="inventory"]{overflow:hidden;scrollbar-gutter:auto}
+#main[data-view="inventory"]>.merchant-results{flex:1 1 0;min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:3px 4px 3px 0;border-top:1px solid var(--line)}
+#main[data-view="inventory"]>.merchant-toolbar{min-height:0;max-height:42%;overflow:auto;flex-shrink:0;padding:2px}
+#main[data-view="inventory"] .stocktake-save{bottom:0;margin-bottom:0}
+.merchant-results .merchant-grid{align-content:start}
+/* Match the sales workspace frame while keeping the product list scrollable. */
+#main[data-view="inventory"]:has(#stocktake-form){gap:12px}
+.merchant-pagination{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px;flex-shrink:0;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+.pagination-controls,.pagination-numbers{display:flex;align-items:center;gap:5px;min-width:0}
+.pagination-controls{max-width:100%}
+.pagination-numbers{overflow-x:auto;scrollbar-width:thin}
+.merchant-pagination button{min-width:40px;min-height:42px;padding:7px 10px;flex-shrink:0;font-size:14px;font-variant-numeric:tabular-nums}
+.merchant-pagination button[aria-current="page"]{background:var(--green);border-color:var(--green);color:white;font-weight:700}
+.merchant-pagination .pagination-step{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.pagination-gap{padding:0 2px}
+.pagination-jump{display:flex;flex-direction:row;align-items:center;gap:6px;white-space:nowrap;font-size:12px}
+.pagination-jump select{width:auto;min-height:42px;padding:6px 25px 6px 9px;font-size:13px}
+#main[data-view="inventory"] .merchant-toolbar{gap:5px;padding:0;max-height:35%}
+#main[data-view="inventory"] .merchant-toolbar input{padding-top:6px;padding-bottom:6px}
+#main[data-view="inventory"] .merchant-toolbar .filters button{min-height:30px;padding:4px 8px}
+#main[data-view="inventory"] .merchant-toolbar .category-buttons{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:3px}
+#main[data-view="inventory"] .merchant-toolbar .category-buttons button{flex-shrink:0;min-height:30px;padding:4px 8px}
+#main[data-view="inventory"] .stocktake-caption{display:none}
+#main[data-view="inventory"] .stocktake-save{min-height:44px;padding:5px 9px;margin-top:6px;border-radius:8px}
+#main[data-view="inventory"] .stocktake-save #save-stocktake{min-height:34px;padding:5px 12px}
+@media(min-width:1500px){.stocktake-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:701px) and (max-width:1050px){.stocktake-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1000px){.sales-layout{grid-template-columns:minmax(0,1fr) minmax(300px,1fr)}.sales-date{flex-wrap:wrap}.sales-date p{display:none}}
+@media(max-width:800px){.sales-layout{grid-template-columns:1fr;height:auto}.sales-products{max-height:360px;flex:auto}.sales-sheet-body{overflow:visible}.sales-picker{max-height:520px}}
+@media(max-width:700px){
+  .topbar{height:42px;padding:0 12px}.top-actions .text-button{min-height:36px}
+  #main[data-view="inventory"],#main[data-view="daily-sales"]{padding:10px 12px 16px;gap:10px}
+  #main:is([data-view="inventory"],[data-view="daily-sales"]) .page-heading h1{font-size:22px}
+  .merchant-heading>div:first-child{flex:1}.merchant-heading .muted{display:none}
+  .merchant-heading .merchant-mode{order:3;flex-basis:100%}
+  .merchant-mode button,.merchant-heading>button{min-height:38px}
+  .merchant-toolbar .search-box{flex-basis:100%}.merchant-toolbar .filters{width:100%}
+  .merchant-toolbar .filters button{min-height:38px}
+  #main[data-view="inventory"] .merchant-toolbar .category-buttons{flex-wrap:nowrap;overflow-x:auto;padding-bottom:5px;max-width:100%}
+  #main[data-view="inventory"] .merchant-toolbar .category-buttons button{flex-shrink:0}
+  #main:is([data-view="inventory"],[data-view="daily-sales"]) .category-buttons button{min-height:36px;padding:6px 8px}
+  #main:is([data-view="inventory"],[data-view="daily-sales"]) .category-filter-heading{display:none}
+  .sales-layout{gap:10px}.sales-products{max-height:300px}.sales-product{min-height:56px}
+  .sales-sheet-body{padding:12px}.sales-date{flex-wrap:nowrap}.sales-date input{width:100%;min-width:0}
+  .merchant-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .merchant-card-info{padding:9px}.merchant-photo{aspect-ratio:1.15}.merchant-name{font-size:13px}
+  .stocktake-cards{grid-template-columns:1fr;gap:10px}
+  .count-shortcuts button{min-height:40px}.count-shortcuts button[data-count-command=clear]{flex-basis:auto;min-height:40px}
+  .count-stepper>button{height:48px;width:48px;min-width:48px}.count-input-wrap input{height:48px}
+  .stocktake-save{bottom:-16px}.stocktake-save #save-stocktake{min-height:44px;font-size:14px}
+  #main[data-view="inventory"] .stocktake-save{display:grid;grid-template-columns:minmax(0,1fr) auto;padding:8px;gap:5px}
+  #main[data-view="inventory"] .stocktake-save .button-row{width:auto;gap:4px}
+  #main[data-view="inventory"] .stocktake-save #stocktake-summary{font-size:12px}
+  #main[data-view="inventory"] .stocktake-save small{font-size:10px}
+  #main[data-view="inventory"] .stocktake-save #reset-stocktake{padding:4px;font-size:11px;min-height:36px}
+  #main[data-view="inventory"] .stocktake-save #save-stocktake{padding:7px;font-size:13px;min-height:40px}
+  #main[data-view="inventory"]:has(#stocktake-form){gap:10px}
+  #main[data-view="inventory"] .merchant-mode{order:3;flex-basis:auto}
+  #main[data-view="inventory"] .merchant-mode button{padding:5px 8px;font-size:12px;min-height:34px}
+  .merchant-pagination{display:grid;grid-template-columns:1fr auto;gap:6px;padding-top:6px}
+  .pagination-summary{font-size:11px}
+  .pagination-jump{grid-column:2;grid-row:1}
+  .pagination-jump select{min-height:36px}
+  .pagination-controls{grid-column:1/-1;justify-content:center}
+  .merchant-pagination button{min-height:44px;min-width:40px;padding:7px}
+  .pagination-step span{display:none}
+  #main[data-view="inventory"] .merchant-toolbar .filters button{min-height:34px}
+  #main[data-view="inventory"] .merchant-toolbar .category-buttons button{min-height:34px}
+}
+
+/* 已盤點、待確認可售：不是缺貨，盤點時可直接勾選確認。 */
+.badge.unconfirmed{background:#fbf2e2;color:#a77729}
+.merchant-stock.unconfirmed{color:#a0561c;font-weight:600}
+.count-confirm{display:flex;flex-direction:row;align-items:center;gap:8px;margin:6px 0;font-size:13px;font-weight:600;color:#86551b}
+.count-confirm input:disabled+span{color:#a59b88}
+.sales-date .sales-date-warn{color:#a0561c;font-weight:600}

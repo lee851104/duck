@@ -1,14 +1,14 @@
 import {renderDailySales,hasSalesDraft} from './views/daily-sales.js';
 import {renderMerchant,renderExports,hasStocktakeDrafts,clearStocktakeDrafts} from './views/merchant.js';
 import {productPhoto} from './product-photo.js';
+import {categoryIcon} from './filter-icons.js';
 import {operation, productPanel, newProduct} from './views/operations.js';
 import {dataManager, importPreview, mappings} from './views/data.js';
-import {renderLineOrders} from './views/line-orders.js';
 
-export const S={view:{'#inventory':'inventory','#line-orders':'line-orders'}[location.hash]||'daily-sales',inventoryMode:'table',savingCounts:false,page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
+export const S={view:{'#inventory':'inventory'}[location.hash]||'daily-sales',inventoryMode:'table',savingCounts:false,page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
 export const $=s=>document.querySelector(s);
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const names={out:'缺貨',low:'低庫存',expiring:'即期',expired:'已過期',uncounted:'未盤點',normal:'正常',unmapped:'待對應',independent:'獨立品項'};
+export const names={out:'缺貨',low:'低庫存',expiring:'即期',expired:'已過期',uncounted:'未盤點',unconfirmed:'待確認可售',normal:'正常',unmapped:'待對應',independent:'獨立品項'};
 export const kinds={opening:'期初匯入',receive:'進貨',issue:'出貨',count:'盤點',price:'改價',edit:'商品修改',create:'新增商品',reverse:'沖銷',return:'顧客退回',mapping:'商品對應'};
 export const badge=status=>`<span class="badge ${esc(status)}">${names[status]||esc(status)}</span>`;
 export const money=v=>v===null||v===undefined?'未設定': /^\d+(\.\d+)?$/.test(String(v))?'$'+Number(v).toLocaleString('zh-TW',{maximumFractionDigits:2}):esc(v);
@@ -82,7 +82,7 @@ function toggleFilter(selected,value){
 export function categoryButtons(categories,selected,action='category-filter'){
   const choices=['',...new Set(categories.filter(Boolean))];
   const values=filterValues(selected);
-  return `<div class="category-filter"><div class="category-filter-heading"><strong>分類</strong><small>${Array.isArray(selected)?'可複選 · ':''}亮起表示已選取，再點取消</small></div><div class="category-buttons" role="group" aria-label="商品分類">${choices.map(c=>`<button type="button" data-action="${action}" data-category="${esc(c)}" aria-pressed="${c?values.includes(c):!values.length}"><span class="category-check" aria-hidden="true">✓</span>${esc(c?c.replace(/^[A-Z]/,''):'全部分類')}</button>`).join('')}</div></div>`;
+  return `<div class="category-filter"><div class="category-filter-heading"><strong>分類</strong><small>${Array.isArray(selected)?'可複選 · ':''}亮起表示已選取，再點取消</small></div><div class="category-buttons" role="group" aria-label="商品分類">${choices.map(c=>`<button type="button" data-action="${action}" data-category="${esc(c)}" aria-pressed="${c?values.includes(c):!values.length}">${categoryIcon(c)}${esc(c?c.replace(/^[A-Z]/,''):'全部分類')}</button>`).join('')}</div></div>`;
 }
 
 function searchToolbar(includeStatus=true){
@@ -91,7 +91,6 @@ function searchToolbar(includeStatus=true){
 
 async function dailySales(seq){await renderDailySales(seq,()=>seq===generation);}
 
-async function lineOrders(seq){await renderLineOrders(seq,()=>seq===generation);}
 
 async function inventory(seq){await renderMerchant(()=>seq===generation);}
 
@@ -130,7 +129,7 @@ export async function render(){
   $('#main').dataset.view=S.view;
   document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===S.view));
   try{
-    await ({dashboard,inventory,catalog,history,exports:renderExports,'daily-sales':dailySales,'line-orders':lineOrders}[S.view]||inventory)(seq);
+    await ({dashboard,inventory,catalog,history,exports:renderExports,'daily-sales':dailySales}[S.view]||inventory)(seq);
     if(seq!==generation)return;
 
   }

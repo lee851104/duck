@@ -61,6 +61,43 @@ class BulkCountsTest(unittest.TestCase):
             self.assertEqual(self.post({'request_id': str(uuid4()), 'items': items}).status_code, 400)
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM movements WHERE kind='count'").fetchone()[0], 0)
 
+    def product(self, batch_id):
+        pid = self.conn.execute('SELECT product_id FROM batches WHERE id=?', (batch_id,)).fetchone()[0]
+        return self.client.get(f'/api/products/{pid}').get_json()
+
+    def test_counted_unconfirmed_stock_is_not_out_of_stock(self):
+        body = self.payload()
+        body['items'][1]['actual_quantity'] = '6'
+        self.assertEqual(self.post(body).status_code, 200)
+        product = self.product(self.ids[1])
+        self.assertEqual((product['status'], product['quantity'], product['unconfirmed_quantity']),
+                         ('unconfirmed', '0', '6'))
+        codes = lambda status: [p['code'] for p in self.client.get(f'/api/products?status={status}').get_json()['items']]
+        self.assertEqual(codes('restock'), ['ONE'])  # 盤點為 0 才是真的缺貨
+        self.assertEqual(codes('unconfirmed'), ['TWO'])
+        dashboard = self.client.get('/api/dashboard').get_json()
+        self.assertEqual(dashboard['out_of_stock_products'], 1)
+        self.assertIn(('TWO', 'unconfirmed', '6'), [(a['name'], a['status'], a['quantity']) for a in dashboard['alerts']['items']])
+
+    def test_stocktake_can_confirm_saleable(self):
+        body = self.payload()
+        body['items'][1].update(actual_quantity='6', saleable_confirmed=True)
+        response = self.post(body)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        product = self.product(self.ids[1])
+        self.assertEqual((product['status'], product['quantity']), ('normal', '6'))
+        reason = self.conn.execute("SELECT reason FROM movements WHERE batch_id=? AND kind='count'", (self.ids[1],)).fetchone()[0]
+        self.assertIn('確認可售', reason)
+        available = {p['code']: p['available'] for p in self.client.get('/api/daily-sales/products').get_json()['items']}
+        self.assertEqual(available['TWO'], '6')
+
+    def test_stocktake_only_confirms_saleable(self):
+        for value in (False, 'true', 1, None):
+            body = self.payload()
+            body['items'][1]['saleable_confirmed'] = value
+            self.assertEqual(self.post(body).status_code, 400, value)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM movements WHERE kind='count'").fetchone()[0], 0)
+
     def test_authentication_and_csrf_required(self):
         self.assertEqual(self.app.test_client().post('/api/counts/bulk', json=self.payload()).status_code, 401)
         self.assertEqual(self.client.post('/api/counts/bulk', json=self.payload()).status_code, 403)

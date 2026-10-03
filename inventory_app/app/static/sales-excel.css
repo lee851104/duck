@@ -1,0 +1,57 @@
+/* Excel review dialog shared with daily sales. */
+.ls-strip{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin:-4px 0 16px;padding:10px 12px;border:1px solid #cfdcbc;border-radius:12px;background:#f3f7ea}
+.ls-strip-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;font-size:13px;color:#536440}
+.ls-strip-text strong{font-size:14px;color:#2f3b28}
+.ls-strip-tools{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.ls-open{min-height:40px;padding:6px 14px;background:#4c652f;border-color:#4c652f;color:#fff;font-size:14px}
+.ls-excel{min-height:40px;font-size:13px;color:#4c652f}
+.ls-from-line{color:#2f6a1f!important;font-weight:600}
+#dialog.ls-dialog{width:min(1000px,calc(100% - 28px))}
+.ls-list{flex:1 1 auto;min-height:140px;overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:12px;padding-right:4px}
+.ls-order{flex-shrink:0;border:1px solid var(--line);border-left:4px solid #8fa470;border-radius:12px;padding:10px 14px;background:#fffef9}
+.ls-order.dropped{opacity:.6;border-left-color:#c8cdbf}
+.ls-order header{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}
+.ls-order header strong{font-size:17px;color:#2f3b28}
+.ls-order header small{color:var(--muted);font-size:13px}
+.ls-when{font-size:12px;color:#647052}
+.ls-when b{font-size:15px;color:#34432b}
+.ls-order-tools{margin-left:auto;display:flex;gap:4px}
+.ls-order-tools .text-button{min-height:32px;padding:2px 6px;font-size:13px;color:#4c652f}
+.ls-note{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.ls-note.warn{padding:5px 10px;border-radius:8px;background:#fff1dd;color:#87500b}
+.ls-source{margin-top:6px;font-size:13px}
+.ls-source summary{cursor:pointer;color:#4c652f;font-weight:600}
+.ls-source p{margin:6px 0 0;padding:8px 10px;border-radius:8px;background:#eef1e6;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.ls-rows{display:flex;flex-direction:column;margin-top:6px}
+.ls-row{display:grid;grid-template-columns:34px minmax(0,1fr) 20px minmax(0,1.3fr);gap:6px 10px;align-items:center;padding:7px 0;border-top:1px dashed #e2e4d6}
+.ls-row.muted .ls-said{color:var(--muted)}
+.ls-row.checked{background:#f1f7e8;border-radius:8px}
+.ls-check{display:flex;justify-content:center}
+.ls-check input{width:22px;height:22px;accent-color:#4c652f}
+.ls-said{min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+.ls-said strong{font-size:15px;overflow-wrap:anywhere}
+.ls-said-qty{font-weight:700;color:#46612e}
+.ls-said em{font-style:normal;font-size:12px;font-weight:600;color:#8a4f12;background:#fdecd2;border-radius:6px;padding:1px 7px}
+.ls-said small{font-size:12px;color:var(--muted)}
+.ls-arrow{color:var(--muted);text-align:center}
+.ls-target{min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.ls-target select{flex:1 1 200px;min-width:0;min-height:40px}
+.ls-qty{display:flex;flex-direction:row;align-items:center;gap:4px}
+.ls-qty input{width:84px;min-height:40px;text-align:center;font-size:16px}
+.ls-qty>span:last-child{font-size:12px;white-space:nowrap}
+.ls-none{font-size:13px;color:var(--muted)}
+.ls-pick{min-height:32px!important;padding:2px 6px;font-size:13px;color:#4c652f}
+.ls-warn{grid-column:2/-1;margin:0;font-size:12px;color:#a0561c}
+.ls-skipped{font-size:13px;color:#5f6853}
+.ls-skipped summary{cursor:pointer;font-weight:600;color:#87500b}
+.ls-skipped{flex-shrink:0}
+.ls-skipped ul{max-height:150px;overflow:auto;margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.ls-skipped li strong{margin-right:8px}
+.ls-foot{flex-shrink:0;padding-top:10px;border-top:1px solid var(--line)}
+.ls-foot p{margin:0;font-size:14px;color:#536440}
+.ls-foot .form-actions{border-top:0;margin-top:6px;padding-top:0}
+.line-unknown{color:#b2621f}
+.sales-warnings{display:flex;flex-direction:column;gap:8px}
+.sales-warnings ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.sales-warnings .check-label{color:#5f4a1c;font-weight:600}
+@media(max-width:700px){.ls-row{grid-template-columns:30px minmax(0,1fr)}.ls-arrow{display:none}.ls-target{grid-column:2}}

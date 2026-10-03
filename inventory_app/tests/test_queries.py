@@ -14,7 +14,7 @@ class QueriesTest(unittest.TestCase):
     def test_search_and_page_limit(self):
         result=self.client.get('/api/products?q=芋頭&page_size=100').get_json()
         self.assertEqual(result['total'],1)
-        self.assertEqual(result['page_size'],10)
+        self.assertEqual(result['page_size'],24)
         self.assertEqual(self.client.get('/api/products?page_size=0').status_code,400)
 
     def test_catalog_category_order_and_missing_photos_kept(self):

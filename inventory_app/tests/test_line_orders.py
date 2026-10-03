@@ -94,6 +94,7 @@ class LineOrdersApiTest(unittest.TestCase):
         for name in ('OPENAI_API_KEY', 'OPENAI_MODEL', 'OPENAI_REASONING_EFFORT'):
             os.environ.pop(name, None)
         test_app.AppTest.setUp(self)
+        self.app.config['ENABLE_LINE_ORDERS'] = True
         self.sent, self.reply, self.failure = [], (lambda payload: []), None
         self.app.config['OPENAI_TRANSPORT'] = self.fake
         self.login()

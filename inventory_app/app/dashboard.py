@@ -33,7 +33,12 @@ def products_with_stock(conn, today):
         p['expired'] = [b for b in bs if b['expired'] and (b['quantity'] is None or Decimal(b['quantity']) > 0)]
         p['expiring'] = [b for b in saleable if b['days_left'] is not None and 0 <= b['days_left'] <= 30 and Decimal(b['quantity']) > 0]
         p['nearest_expiry'] = min((b['expires_on'] for b in saleable if b['expires_on'] and Decimal(b['quantity']) > 0), default=None)
-        p['status'] = 'uncounted' if unknown else ('out' if quantity == 0 else
+        # 已盤點、還沒確認可售的庫存：不能賣，但也不是缺貨，避免老闆誤以為要補貨。
+        unconfirmed = sum((Decimal(b['quantity']) for b in bs
+                           if not b['expired'] and not b['saleable'] and b['quantity'] is not None), Decimal(0))
+        p['unconfirmed_quantity'] = decimal_text(unconfirmed)
+        p['status'] = 'uncounted' if unknown else ('unconfirmed' if quantity == 0 and unconfirmed > 0 else
+                       'out' if quantity == 0 else
                        'low' if p['minimum'] is not None and quantity < Decimal(p['minimum']) else 'normal')
         p['conversions'] = json.loads(p['conversions'])
         p['batches'] = bs
@@ -59,7 +64,7 @@ def list_products(conn, query='', status='', page=1, page_size=10, today=None, c
         if categories and p['category'] not in categories:
             return False
         return not statuses or any(matches_status(p, value) for value in statuses)
-    return paginate([p for p in items if match(p)], page, page_size)
+    return paginate([p for p in items if match(p)], page, page_size, maximum=24)
 
 
 def get_dashboard(conn, today, page=1, page_size=6):
@@ -73,11 +78,14 @@ def get_dashboard(conn, today, page=1, page_size=6):
         if p['status'] in {'out', 'low'}:
             alerts.append({'product_id': p['id'], 'name': p['name'], 'status': p['status'],
                            'detail': '需補貨', 'quantity': p['quantity'], 'unit': p['unit']})
+        if p['status'] == 'unconfirmed':
+            alerts.append({'product_id': p['id'], 'name': p['name'], 'status': 'unconfirmed',
+                           'detail': '已盤點，待確認可售', 'quantity': p['unconfirmed_quantity'], 'unit': p['unit']})
         for b in p['expiring']:
             alerts.append({'product_id': p['id'], 'name': p['name'], 'status': 'expiring',
                            'batch_id': b['id'], 'detail': '今日到期' if b['days_left'] == 0 else f"{b['days_left']} 天後到期",
                            'quantity': b['quantity'], 'unit': p['unit']})
-    order = {'expired': 0, 'out': 1, 'expiring': 2, 'low': 3}
+    order = {'expired': 0, 'out': 1, 'unconfirmed': 2, 'expiring': 3, 'low': 4}
     alerts.sort(key=lambda a: (order[a['status']], a['name']))
     latest = conn.execute('SELECT MAX(created_at) FROM movements').fetchone()[0]
     return {'out_of_stock_products': sum(p['status'] == 'out' for p in products),

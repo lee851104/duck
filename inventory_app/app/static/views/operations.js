@@ -12,6 +12,7 @@ export async function productPanel(id,tab='basic',page=1){
   if(tab==='basic')content=`<div class="detail-top">${image(p)}<div><small>可售庫存</small><div class="detail-number">${qty(p)}</div>${badge(p.status)}${Number(p.reserved_quantity)>0?`<small>已扣除訂單預留 ${esc(p.reserved_quantity)} ${esc(p.unit)}</small>`:''}</div></div>
     <dl class="details-grid"><div><dt>品號</dt><dd>${esc(p.code)}</dd></div><div><dt>售價</dt><dd>${money(p.price)}</dd></div><div><dt>分類</dt><dd>${esc(p.category||'未設定')}</dd></div><div><dt>供應商</dt><dd>${esc(p.supplier||'未設定')}</dd></div><div><dt>最低庫存</dt><dd>${esc(p.minimum??'未設定')} ${esc(p.unit)}</dd></div><div><dt>最近效期</dt><dd>${p.nearest_expiry||'無已知可售效期'}</dd></div></dl>
     ${p.uncounted?'<p class="notice">有批次尚未盤點，總庫存目前不完整。</p>':''}
+    ${p.status==='unconfirmed'?`<p class="notice">已盤點 ${esc(p.unconfirmed_quantity)} ${esc(p.unit)}，但還沒確認可售，每日銷售單扣不到。請在「盤點庫存」勾選「確認可售」，或在批次的「盤點」確認。</p>`:''}
     <div class="button-row"><button id="edit-product">修改資料／售價</button><button id="return-product">顧客退回</button></div>`;
   else if(tab==='batches'){
     const data=await api(`/products/${id}/batches?page=${page}&page_size=3`);
@@ -34,7 +35,7 @@ export async function newProduct(p=null){
   formSubmit($('#product-form'),async f=>{const body=Object.fromEntries(f);body.price=body.price||null;body.minimum=body.minimum||null;
     body.conversions={};if(f.get('conversions').trim())for(const pair of f.get('conversions').split(/[,，]/)){const [k,v]=pair.split('=');if(!k?.trim()||!v?.trim())throw new Error('換算請使用「箱=24」格式');body.conversions[k.trim()]=v.trim();}
     if(p)body.expected_version=p.version;
-    await api(p?'/products/'+p.id:'/products',body,p?'PATCH':'POST');closeDialog(true);await refresh();toast(p?'商品資料已更新':'已新增商品，請盤點初始數量');});
+    await api(p?'/products/'+p.id:'/products',body,p?'PATCH':'POST');closeDialog(true);await refresh();toast(p?'商品資料已更新':'已新增商品：請到「盤點庫存」填數量，並勾選「確認可售」');});
 }
 
 export async function operation(type,id=null,batchId=null){

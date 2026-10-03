@@ -134,6 +134,72 @@ class DailySalesTest(unittest.TestCase):
         self.assertIn('id', result)
         self.assertEqual(self.quantities(), ['3', '2', '1.75', '7'])
 
+    def test_product_list_reports_server_today(self):
+        # 分頁開著過夜時，前端靠這個日期判斷草稿日期是否過期。
+        self.assertEqual(self.client.get('/api/daily-sales/products').get_json()['today'], '2026-10-01')
+
+    def test_backfill_after_count_requires_confirmation(self):
+        pid = self.ids[0]
+        bid, version = self.conn.execute('SELECT id,version FROM batches WHERE product_id=? ORDER BY id LIMIT 1', (pid,)).fetchone()
+        response = self.client.post('/api/counts', json={'batch_id': bid, 'expected_version': version,
+            'actual_quantity': '2', 'request_id': str(uuid4())}, headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        body = {**self.body([{'product_id': pid, 'quantity': '1'}]), 'sold_on': '2026-09-30'}
+        # 盤點時間固定下來，不受執行測試當天影響；銷售日之前的盤點不提醒。
+        self.conn.execute("UPDATE movements SET created_at='2026-09-29T20:00:00+08:00' WHERE kind='count'")
+        self.assertEqual(self.post('/preview', body).get_json()['warnings'], [])
+        self.conn.execute("UPDATE movements SET created_at='2026-10-01T09:00:00+08:00' WHERE kind='count'")
+        plan = self.post('/preview', body).get_json()
+        self.assertEqual([w['kind'] for w in plan['warnings']], ['counted'])
+        self.assertIn('10/01 09:00', plan['warnings'][0]['message'])
+        command = {**body, 'revision': plan['revision'], 'request_id': str(uuid4())}
+        before = self.quantities()
+        refused = self.post('', command)
+        self.assertEqual(refused.status_code, 409)
+        self.assertEqual(refused.get_json()['error']['code'], 'sale_warnings')
+        self.assertEqual(self.quantities(), before)
+        self.assertEqual(self.post('', {**command, 'confirm_warnings': True}).status_code, 200)
+        self.assertEqual(self.quantities(), ['1', '7', '3', '7'])
+        # 當天的單不看盤點時間：早上盤點、晚上結帳是正常流程。
+        self.assertEqual(self.post('/preview', self.body()).get_json()['warnings'], [])
+
+    def test_backfill_after_later_sheet_uses_later_batches(self):
+        pid = self.ids[0]
+        old, new = [r[0] for r in self.conn.execute('SELECT id FROM batches WHERE product_id=? ORDER BY id', (pid,))]
+        self.conn.execute("UPDATE batches SET received_on='2026-09-20' WHERE id=?", (old,))
+        self.conn.execute("UPDATE batches SET received_on='2026-10-01' WHERE id=?", (new,))
+        # 10/1 的單先送出，依效期扣光舊批次；回頭補登 9/30 時，舊批次已經不夠扣。
+        self.assertEqual(self.post('', self.prepared(self.body([{'product_id': pid, 'quantity': '3'}]))).status_code, 200)
+        body = {**self.body([{'product_id': pid, 'quantity': '2'}]), 'sold_on': '2026-09-30'}
+        plan = self.post('/preview', body).get_json()
+        self.assertEqual([w['kind'] for w in plan['warnings']], ['later_stock'])
+        self.assertEqual([(a['batch_id'], a['quantity'], a.get('later')) for a in plan['items'][0]['allocations']],
+                         [(new, '2', True)])
+        command = {**body, 'revision': plan['revision'], 'request_id': str(uuid4())}
+        self.assertEqual(self.post('', command).status_code, 409)
+        self.assertEqual(self.post('', {**command, 'confirm_warnings': True}).status_code, 200)
+        self.assertEqual(self.quantities()[:2], ['0', '5'])
+        refused = self.post('/preview', {**self.body([{'product_id': pid, 'quantity': '6'}]), 'sold_on': '2026-09-29'})
+        self.assertEqual(refused.status_code, 409)
+        self.assertIn('之後進貨 5', refused.get_json()['error']['message'])
+
+    def test_same_day_manual_sale_requires_confirmation_until_reversed(self):
+        pid = self.ids[0]
+        bid, version = self.conn.execute('SELECT id,version FROM batches WHERE product_id=? ORDER BY id DESC LIMIT 1', (pid,)).fetchone()
+        issued = self.client.post('/api/issues', json={'product_id': pid, 'reason': '銷售', 'request_id': str(uuid4()),
+            'allocations': [{'batch_id': bid, 'quantity': '2', 'expected_version': version}]}, headers=self.headers)
+        self.assertEqual(issued.status_code, 200, issued.get_json())
+        self.conn.execute("UPDATE movements SET created_at='2026-10-01T11:00:00+08:00' WHERE kind='issue'")
+        plan = self.post('/preview', self.body()).get_json()
+        self.assertEqual([(w['product_id'], w['kind']) for w in plan['warnings']], [(pid, 'manual_sale')])
+        self.assertIn('記錄 2 包', plan['warnings'][0]['message'])
+        command = {**self.body(), 'revision': plan['revision'], 'request_id': str(uuid4())}
+        self.assertEqual(self.post('', command).get_json()['error']['code'], 'sale_warnings')
+        reversal = self.client.post('/api/reversals', json={'movement_id': issued.get_json()['movement_ids'][0],
+            'reason': '改用每日銷售單', 'request_id': str(uuid4())}, headers=self.headers)
+        self.assertEqual(reversal.status_code, 200, reversal.get_json())
+        self.assertEqual(self.post('/preview', self.body()).get_json()['warnings'], [])
+
     def test_auth_and_customer_ordering_disabled(self):
         self.assertEqual(self.app.test_client().get('/api/daily-sales').status_code, 401)
         self.assertEqual(self.client.post('/api/daily-sales', json=self.body()).status_code, 403)
