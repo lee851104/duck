@@ -24,19 +24,20 @@ export function distanceMeters(a, b) {
 
 export function deliveryRule(meters) {
   if (!Number.isFinite(meters) || meters < 0) throw new TypeError('Invalid distance');
-  if (meters <= 3000) return { zone: 'near', minimum: 100, fee: 20, eligible: true };
-  if (meters <= 5000) return { zone: 'outer', minimum: 300, fee: 20, eligible: true };
-  return { zone: 'outside', minimum: null, fee: null, eligible: false };
-}
-
-export function crossesBoundary(meters, accuracy = 0) {
-  if (!Number.isFinite(accuracy) || accuracy < 0) return true;
-  return [3000, 5000].some(boundary => meters - accuracy <= boundary && meters + accuracy > boundary);
+  if (meters <= 5000) return { zone: 'near', eligible: true };
+  if (meters <= 10000) return { zone: 'outer', eligible: null };
+  return { zone: 'outside', eligible: false };
 }
 
 export function distanceLabel(meters) {
-  // Round upward: a point just outside 3 or 5 km must not display as exactly on it.
+  // Round upward so a point just outside a threshold never appears inside it.
   return (Math.ceil((meters - 1e-8) / 10) / 100).toFixed(2);
+}
+
+export function navigationUrl(point) {
+  if (!validPoint(point)) throw new TypeError('Invalid coordinates');
+  return `https://www.google.com/maps/dir/?${new URLSearchParams({ api: '1',
+    origin: `${STORE.lat},${STORE.lng}`, destination: `${point.lat},${point.lng}`, travelmode: 'driving' })}`;
 }
 
 export function searchQueries(raw) {

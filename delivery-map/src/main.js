@@ -2,7 +2,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './style.css';
 import './workspace.css';
-import { STORE, distanceMeters, deliveryRule, crossesBoundary, distanceLabel, featureToCandidate, searchQueries } from './rules.js';
+import { STORE, deliveryRule, distanceLabel, featureToCandidate, searchQueries, navigationUrl } from './rules.js';
 
 const $ = id => document.getElementById(id);
 const result = $('result');
@@ -18,6 +18,9 @@ let connector;
 let accuracyCircle;
 let suggestionTimer;
 let composing = false;
+let abortRoute;
+let routeGeneration = 0;
+const routePadding = { paddingTopLeft: [32, 100], paddingBottomRight: [32, 40], maxZoom: 16 };
 
 const map = L.map('map', { scrollWheelZoom: true, zoomControl: false, doubleClickZoom: false, zoomSnap: 0.25, zoomDelta: 0.5 }).setView([STORE.lat, STORE.lng], 12);
 L.control.zoom({ position: 'topright', zoomInTitle: '放大地圖', zoomOutTitle: '縮小地圖' }).addTo(map);
@@ -53,8 +56,6 @@ for (const layer of [streetTiles, photoTiles]) {
 }
 streetTiles.addTo(map);
 
-const outer = L.circle([STORE.lat, STORE.lng], { radius: 5000, color: '#b38a39', weight: 2, dashArray: '6 7', fillColor: '#e7c77e', fillOpacity: .12 }).addTo(map);
-const inner = L.circle([STORE.lat, STORE.lng], { radius: 3000, color: '#416d52', weight: 2, fillColor: '#678d63', fillOpacity: .18 }).addTo(map);
 document.querySelectorAll('[name="basemap"]').forEach(input => input.addEventListener('change', () => {
   if (!input.checked) return;
   const photo = input.value === 'photo';
@@ -68,16 +69,19 @@ document.querySelectorAll('[name="basemap"]').forEach(input => input.addEventLis
     ? '部分正射影像無法載入，請切回街道圖或稍後再試。'
     : '底圖暫時無法載入，請檢查網路。距離計算仍可使用。';
   next.addTo(map);
-  inner.setStyle({ color: photo ? '#bce595' : '#416d52', fillOpacity: photo ? .06 : .18 });
-  outer.setStyle({ color: photo ? '#ffcf68' : '#b38a39', fillOpacity: photo ? .04 : .12 });
   connector?.setStyle({ color: photo ? '#ffffff' : '#244f3d' });
 }));
 const shopIcon = L.divIcon({ className: 'shop-pin', html: '<img src="/favicon.svg" alt="" /><span>菜騎鴨</span>', iconSize: [48, 66], iconAnchor: [24, 36] });
 L.marker([STORE.lat, STORE.lng], { icon: shopIcon, title: '菜騎鴨：外送起點', alt: '菜騎鴨店家位置' }).addTo(map);
 
-function overview() { map.fitBounds(outer.getBounds(), { padding: [14, 14], animate: false }); }
+function overview() { map.setView([STORE.lat, STORE.lng], 13, { animate: false }); }
 overview();
-new ResizeObserver(() => { map.invalidateSize(); if (!selected && !pendingPoint) overview(); }).observe($('map'));
+new ResizeObserver(() => {
+  map.invalidateSize();
+  if (connector && selected && !$('map').hidden) {
+    map.fitBounds(connector.getBounds().extend([STORE.lat, STORE.lng]).extend([selected.lat, selected.lng]), { ...routePadding, animate: false });
+  } else if (!selected && !pendingPoint) overview();
+}).observe($('map'));
 
 function cancelPending() {
   generation++;
@@ -100,38 +104,116 @@ function clearMarkers() {
   locationMarker = connector = accuracyCircle = undefined;
 }
 
+function cancelRoute() {
+  routeGeneration++;
+  abortRoute?.abort();
+  abortRoute = undefined;
+  result.removeAttribute('aria-busy');
+}
+
+function showSelectionMap() {
+  $('google-route').hidden = true;
+  $('google-route-image').removeAttribute('src');
+  $('map').hidden = false;
+  document.querySelector('.basemap-switch').hidden = false;
+  $('route-provider').textContent = '選擇收貨位置';
+  map.invalidateSize();
+}
+
 function mark(point, { accuracy = 0, fit = true } = {}) {
   clearMarkers();
   locationMarker = L.marker([point.lat, point.lng], {
     icon: L.divIcon({ className: 'destination-pin', html: '<span></span>', iconSize: [26, 26], iconAnchor: [13, 13] }),
     title: '你選擇的位置', alt: '你選擇的位置',
   }).addTo(map);
-  connector = L.polyline([[STORE.lat, STORE.lng], [point.lat, point.lng]], { color: activeTiles === photoTiles ? '#ffffff' : '#244f3d', weight: 2, dashArray: '4 6', interactive: false }).addTo(map);
   if (accuracy > 0) accuracyCircle = L.circle([point.lat, point.lng], { radius: accuracy, weight: 1, color: '#527998', fillOpacity: .08, interactive: false }).addTo(map);
   if (fit) {
-    const bounds = outer.getBounds().extend([point.lat, point.lng]);
+    const bounds = L.latLngBounds([[STORE.lat, STORE.lng], [point.lat, point.lng]]);
     map.fitBounds(bounds, { padding: [18, 18], maxZoom: 15 });
   }
 }
 
-function showResult(point, options = {}) {
+async function showResult(point, options = {}) {
   cancelPending();
+  cancelRoute();
+  showSelectionMap();
   selected = point;
-  const meters = distanceMeters(STORE, point);
-  const rule = deliveryRule(meters);
-  const uncertain = crossesBoundary(meters, options.accuracy || 0);
-  const state = uncertain ? 'uncertain' : rule.zone;
   mark(point, options);
-  result.dataset.state = state;
-  const titles = { near: '可以外送', outer: '可以外送', outside: '超出外送範圍', uncertain: '請確認位置' };
-  const body = uncertain
-    ? '定位誤差跨過範圍界線，請點地圖選擇實際位置。'
-    : rule.eligible ? `滿 <strong>${rule.minimum} 元</strong>免運，未滿加收 20 元／趟`
-      : '超過 5 公里，歡迎來店自取。';
-  result.innerHTML = `<div class="result-summary"><h3>${titles[state]}</h3><span class="result-distance">${distanceLabel(meters)} 公里</span></div><p class="result-description">${body}</p>${rule.eligible && !uncertain ? '<p class="result-detail">團購不計低消 · 訂購時間請見外送須知</p>' : ''}${options.accuracy ? '<p class="accuracy-note"></p>' : ''}`;
-  if (options.accuracy) result.querySelector('.accuracy-note').textContent = `定位精度約 ±${Math.ceil(options.accuracy)} 公尺`;
   document.querySelector('.map-hint').hidden = true;
+  // GPS error cannot be added/subtracted from a road-route distance reliably.
+  // Ask for an explicit pin confirmation instead of inventing an error margin.
+  if (options.accuracy > 100) {
+    result.dataset.state = 'confirm';
+    result.innerHTML = `<div><h3>請確認收貨位置</h3><p class="confirm-note">定位誤差約 ${Math.ceil(options.accuracy)} 公尺，請點地圖修正，或確認目前圓點。</p></div><button id="confirm-location" class="confirm-button" type="button">位置正確，查路線</button>`;
+    $('confirm-location').addEventListener('click', () => showResult(point));
+    return;
+  }
+  const token = routeGeneration;
+  const controller = new AbortController(); abortRoute = controller;
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  result.dataset.state = 'loading'; result.setAttribute('aria-busy', 'true');
+  result.innerHTML = '<div class="result-summary"><h3>正在查詢道路路線…</h3></div><p class="result-description">從菜騎鴨出發，計算汽車行駛距離。</p>';
+  try {
+    const response = await fetch('/api/route', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: point.lat, lng: point.lng, osrmOnly: options.osrmOnly === true }), signal: controller.signal });
+    const route = await response.json();
+    if (!response.ok) throw new Error(route.error || 'provider-unavailable');
+    if (token !== routeGeneration) return;
+    const rule = deliveryRule(route.meters);
+    if (route.provider === 'google') {
+      // Google content is shown only on its own map, never over Leaflet/OSM.
+      if (typeof route.mapImage !== 'string' || !route.mapImage.startsWith('data:image/png;base64,')) throw new Error('provider-unavailable');
+      $('google-route-image').src = route.mapImage;
+      $('google-route').hidden = false;
+      $('map').hidden = true;
+      document.querySelector('.basemap-switch').hidden = true;
+      $('map-error').hidden = true;
+      $('route-provider').textContent = 'Google Maps · 汽車路線';
+    } else if (route.provider === 'osrm') {
+      if (!Array.isArray(route.coordinates) || route.coordinates.length < 2) throw new Error('provider-unavailable');
+      connector = L.polyline(route.coordinates, { color: activeTiles === photoTiles ? '#ffffff' : '#244f3d',
+        weight: 5, opacity: .9, interactive: false }).addTo(map);
+      map.fitBounds(connector.getBounds().extend([STORE.lat, STORE.lng]).extend([point.lat, point.lng]), routePadding);
+      $('route-provider').textContent = 'OpenStreetMap / OSRM · 汽車路線';
+    } else throw new Error('provider-unavailable');
+    const titles = { near: '可以外送', outer: '請先確認人手', outside: '無法配送' };
+    const descriptions = { near: '5 公里內，外送低消 <strong>300 元</strong>。',
+      outer: '超過 5 至 10 公里，請先向店家確認人手狀況。', outside: '超過 10 公里，因人手不足無法配送；歡迎來店自取。' };
+    result.dataset.state = rule.zone;
+    result.innerHTML = `<div class="result-summary"><h3>${titles[rule.zone]}</h3><span class="result-distance">道路 ${distanceLabel(route.meters)} 公里</span></div><p class="result-description">${descriptions[rule.zone]}</p><div class="route-detail"><span class="route-source"></span><a class="navigation-link" target="_blank" rel="noopener noreferrer">Google 導航 ↗</a></div>`;
+    result.querySelector('.route-source').textContent = route.provider === 'google' ? 'Google Maps · 店家 → 收貨位置'
+      : 'OpenStreetMap / OSRM 備援路線，可能與 Google 導航不同';
+    result.querySelector('.navigation-link').href = navigationUrl(point);
+    if (options.accuracy || route.snappedMeters > 30) {
+      const note = document.createElement('p'); note.className = 'accuracy-note';
+      note.textContent = '路線以附近可通行道路為終點，請確認收貨入口；巷弄與定位誤差可能影響結果。';
+      result.append(note);
+    }
+  } catch (error) {
+    if (token !== routeGeneration) return;
+    showSelectionMap();
+    result.dataset.state = 'uncertain';
+    const messages = { busy: '查詢較頻繁，請稍候 2 秒再試。', 'invalid-destination': '此位置超出本站查詢區域，請用 Google 導航確認。',
+      'no-route': '找不到可通行路線，請選擇附近的收貨入口。' };
+    result.innerHTML = '<div class="result-summary"><h3>暫時無法判定</h3></div><p class="result-description"></p><div class="route-detail"><button id="retry-route" type="button">重新查詢</button><a class="navigation-link" target="_blank" rel="noopener noreferrer">開啟 Google 導航 ↗</a></div>';
+    result.querySelector('.result-description').textContent = messages[error.message] || '道路查詢暫時無法使用，請用 Google 導航查看距離並向店家確認。';
+    result.querySelector('.navigation-link').href = navigationUrl(point);
+    $('retry-route').addEventListener('click', () => showResult(point, options));
+  } finally {
+    clearTimeout(timeout);
+    if (token === routeGeneration) result.removeAttribute('aria-busy');
+  }
 }
+
+$('adjust-location').addEventListener('click', () => {
+  cancelRoute(); showSelectionMap();
+  result.dataset.state = 'empty'; result.innerHTML = emptyResult;
+  document.querySelector('.map-hint').hidden = false;
+});
+$('google-route-image').addEventListener('error', () => {
+  if (selected && !$('google-route').hidden) showResult(selected, { osrmOnly: true });
+});
 
 map.on('click', event => showResult(event.latlng, { fit: false }));
 $('map').addEventListener('keydown', event => {
@@ -140,7 +222,7 @@ $('map').addEventListener('keydown', event => {
   }
 });
 $('reset-map').addEventListener('click', () => {
-  cancelPending(); clearMarkers(); selected = null;
+  cancelPending(); cancelRoute(); showSelectionMap(); clearMarkers(); selected = null;
   $('address').value = '';
   result.dataset.state = 'empty'; result.innerHTML = emptyResult;
   document.querySelector('.map-hint').hidden = false;
@@ -149,6 +231,7 @@ $('reset-map').addEventListener('click', () => {
 
 function chooseCandidate(candidate) {
   cancelPending();
+  cancelRoute(); showSelectionMap();
   $('address').value = candidate.name;
   selected = null; pendingPoint = candidate;
   mark(candidate);
@@ -185,6 +268,7 @@ async function searchProvider(query, signal) {
 
 function queueSuggestions() {
   cancelPending();
+  cancelRoute(); showSelectionMap();
   if (result.dataset.state !== 'empty') {
     result.dataset.state = 'empty'; result.innerHTML = emptyResult;
     selected = null;
@@ -233,7 +317,7 @@ async function runSearch({ automatic = false } = {}) {
       const li = document.createElement('li'); const button = document.createElement('button'); button.type = 'button';
       const name = document.createElement('strong'); name.textContent = candidate.name;
       const address = document.createElement('span'); address.textContent = candidate.address;
-      const distance = document.createElement('small'); distance.textContent = `距店家約 ${distanceLabel(distanceMeters(STORE, candidate))} 公里 · 請確認實際位置`;
+      const distance = document.createElement('small'); distance.textContent = '確認收貨入口後，查詢道路距離';
       button.append(name, address, distance); button.addEventListener('click', () => {
         chooseCandidate(candidate);
         $('confirm-location').focus({ preventScroll: true });
@@ -281,10 +365,12 @@ rulesDialog.addEventListener('click', event => {
 
 $('locate-button').addEventListener('click', () => {
   const token = cancelPending();
+  cancelRoute(); showSelectionMap(); clearMarkers();
+  result.dataset.state = 'empty'; result.innerHTML = emptyResult;
   if (!navigator.geolocation) { $('search-status').textContent = '此瀏覽器不支援定位，請輸入地址或在地圖選點。'; return; }
   $('locate-button').disabled = true;
   $('locate-button').querySelector('span').textContent = '正在取得位置…';
-  $('search-status').textContent = '請允許瀏覽器使用位置；不會將定位座標送往地址搜尋服務。';
+  $('search-status').textContent = '請允許瀏覽器使用位置；座標會傳送至路線服務以計算道路距離。';
   navigator.geolocation.getCurrentPosition(position => {
     if (token !== generation) return;
     $('address').value = '';

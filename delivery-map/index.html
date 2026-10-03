@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#244f3d" />
-    <meta name="description" content="菜騎鴨外送範圍查詢工具。輸入地址、定位或在地圖選點，查看 3 公里與 5 公里外送規則。" />
+    <meta name="description" content="菜騎鴨道路距離外送查詢。5 公里內低消 300 元，5 至 10 公里請確認人手，超過 10 公里無法配送。" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>外送有到我家嗎？｜菜騎鴨</title>
   </head>
@@ -31,17 +31,17 @@
       <div id="result" class="result-card" data-state="empty" role="status" aria-live="polite" aria-atomic="true"></div>
       <section class="map-panel" aria-label="外送範圍地圖">
         <div class="map-heading">
-          <div class="legend"><span><i class="legend-dot near"></i>3 公里</span><span><i class="legend-dot outer"></i>5 公里</span></div>
+          <div id="route-provider" class="route-provider">選擇收貨位置</div>
           <button id="reset-map" type="button">回到店家</button>
         </div>
-        <div class="map-container"><fieldset class="basemap-switch"><legend class="sr-only">切換底圖</legend><label><input type="radio" name="basemap" value="street" checked /><span>街道圖</span></label><label><input type="radio" name="basemap" value="photo" /><span>正射影像</span></label></fieldset><div id="map" aria-label="互動地圖：點選位置查詢；也可用方向鍵移動，再按 Enter 選擇中心" tabindex="0"></div><div id="map-error" class="map-error" role="status" hidden>底圖暫時無法載入，請檢查網路。距離計算仍可使用。</div><div class="map-hint">點地圖，也能查外送</div></div>
+        <div class="map-container"><fieldset class="basemap-switch"><legend class="sr-only">切換底圖</legend><label><input type="radio" name="basemap" value="street" checked /><span>街道圖</span></label><label><input type="radio" name="basemap" value="photo" /><span>正射影像</span></label></fieldset><div id="map" aria-label="互動地圖：點選位置查詢；也可用方向鍵移動，再按 Enter 選擇中心" tabindex="0"></div><div id="google-route" class="google-route" hidden><img id="google-route-image" alt="Google Maps 汽車路線圖，S 為店家，D 為收貨位置" /><button id="adjust-location" type="button">調整收貨位置</button></div><div id="map-error" class="map-error" role="status" hidden>底圖暫時無法載入，請檢查網路或稍後再試。</div><div class="map-hint">點地圖，查詢道路距離</div></div>
       </section>
-      <p class="map-caption">直線距離僅供參考，實際配送請向店家確認。</p>
+      <p class="map-caption">汽車道路距離：5 公里內低消 300 元 · 5–10 公里請確認人手 · 超過 10 公里無法配送</p>
     </main>
     <dialog id="rules-dialog" aria-labelledby="notes-title"><div class="dialog-heading"><h2 id="notes-title">外送須知</h2><button id="close-rules" type="button" aria-label="關閉外送須知">×</button></div><div class="dialog-body">
       <section class="delivery-notes"><div class="time-notes"><article><span class="time-number">15:00</span><div><h3>請在下午三點前訂購</h3><p>台中港重劃區不受此截止時間限制；<br />但 15:00 後下單，皆不提供蔬果處理服務。</p></div></article><article><span class="time-number">16:00</span><div><h3>每日四點出發配送</h3><p>依當日訂單順路配送，並非四點送達。<br />其他時段請先詢問，四點後請留意社群到貨訊息。</p></div></article></div>
-      <details class="full-rules" open><summary>查看完整外送須知 <span aria-hidden="true">＋</span></summary><ol><li>3 公里內消費滿 100 元；超過 3 至 5 公里消費滿 300 元，即可免費外送。未達低消酌收 20 元／趟。團購商品不計入低消。超過 5 公里不外送，歡迎來店自取。</li><li>請於 15:00 前完成訂購。台中港重劃區不受此限，但 15:00 後下單恕無法提供蔬果處理服務。此例外只涉及訂購時間，不改變 5 公里距離規則；區域認定請向店家確認。</li><li>每日 16:00 出發，依當日訂單順路路線配送；其他時間需求請先詢問。</li><li>大樓送至「外送桌」；透天若無人應門，會放在騎樓或其他安全地方。</li><li>如需寄放管理室、冷藏或冷凍，請於訂購時備註。管理室無法接收時，會改放外送桌並通知。</li><li>冷凍肉品、海鮮及食品會裝保冰袋，仍請儘速取貨。</li><li>16:00 後請留意社群到貨訊息，恕無法一一通知。</li><li>店家規則：訂購即視為同意外送須知。本頁僅供查詢，不受理訂單。</li></ol></details></section>
-      <p class="dialog-source">店家：臺中市清水區中社路 102-21 號 · <a href="https://maps.app.goo.gl/ThLryBDRxGa6YcFg6" target="_blank" rel="noopener noreferrer">Google 地圖查看</a></p><p class="dialog-source">地址搜尋由 <a href="https://github.com/komoot/photon" target="_blank" rel="noopener noreferrer">Photon</a> 提供，查詢文字會傳送至該服務。本站不儲存地址或定位紀錄。</p><p class="dialog-source">本頁提供外送範圍查詢，不受理訂單。圓圈以直線距離估算。正射影像由內政部國土測繪中心提供，各區拍攝時間不同，非即時影像。街道圖資料 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>。</p>
+      <details class="full-rules" open><summary>查看完整外送須知 <span aria-hidden="true">＋</span></summary><ol><li>依店家出發至收貨位置的汽車道路距離判斷：5 公里內（含 5 公里）低消 300 元；超過 5 至 10 公里（含 10 公里）須先向店家確認人手狀況；超過 10 公里因人手不足無法配送，歡迎來店自取。未達低消、運費與團購計算方式請洽店家。</li><li>請於 15:00 前完成訂購。台中港重劃區不受此限，但 15:00 後下單恕無法提供蔬果處理服務。此例外只涉及訂購時間，不改變道路距離與人手確認規則；區域認定請向店家確認。</li><li>每日 16:00 出發，依當日訂單順路路線配送；其他時間需求請先詢問。</li><li>大樓送至「外送桌」；透天若無人應門，會放在騎樓或其他安全地方。</li><li>如需寄放管理室、冷藏或冷凍，請於訂購時備註。管理室無法接收時，會改放外送桌並通知。</li><li>冷凍肉品、海鮮及食品會裝保冰袋，仍請儘速取貨。</li><li>16:00 後請留意社群到貨訊息，恕無法一一通知。</li><li>店家規則：訂購即視為同意外送須知。本頁僅供查詢，不受理訂單。</li></ol></details></section>
+      <p class="dialog-source">店家：臺中市清水區中社路 102-21 號 · <a href="https://maps.app.goo.gl/ThLryBDRxGa6YcFg6" target="_blank" rel="noopener noreferrer">Google 地圖查看</a></p><p class="dialog-source">道路路線優先使用 Google Maps；達本站用量上限或無法使用時切換 OpenStreetMap / OSRM。兩者路線可能不同，以當次顯示的來源與距離為準，不代表機車路線或當日實際行駛軌跡。</p><p class="dialog-source">正射影像由內政部國土測繪中心提供，非即時影像。街道圖與 OSRM 道路資料 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener noreferrer">回報地圖錯誤</a>。<a href="/privacy.html" target="_blank" rel="noopener noreferrer">隱私與使用條款</a></p>
     </div></dialog>
     <script type="module" src="/src/main.js"></script>
   </body>

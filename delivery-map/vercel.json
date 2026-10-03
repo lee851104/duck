@@ -3,6 +3,7 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": { "api/route.js": { "maxDuration": 30 } },
   "headers": [{
     "source": "/(.*)",
     "headers": [

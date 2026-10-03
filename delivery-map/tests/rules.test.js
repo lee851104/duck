@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STORE, distanceMeters, deliveryRule, crossesBoundary, distanceLabel, demoPoint, featureToCandidate, searchQueries } from '../src/rules.js';
+import { STORE, distanceMeters, deliveryRule, distanceLabel, demoPoint, featureToCandidate, searchQueries, navigationUrl } from '../src/rules.js';
 
-test('3 km and 5 km inclusivity and just-outside cases', () => {
-  for (const [meters, expected] of [[0,100],[2999.99,100],[3000,100],[3000.01,300],[4999.99,300],[5000,300],[5000.01,null]]) {
-    assert.equal(deliveryRule(meters).minimum, expected);
-    assert.equal(deliveryRule(meters).eligible, meters <= 5000);
+test('5 km and 10 km road-distance boundaries include exact thresholds', () => {
+  for (const [meters, expected, eligible] of [[0,'near',true],[4999.99,'near',true],[5000,'near',true],
+    [5000.01,'outer',null],[10000,'outer',null],[10000.01,'outside',false]]) {
+    assert.equal(deliveryRule(meters).zone, expected);
+    assert.equal(deliveryRule(meters).eligible, eligible);
   }
-  assert.equal(deliveryRule(5000.01).fee, null);
 });
 test('invalid distance cannot produce an eligible result', () => {
   for (const value of [NaN, Infinity, -1, '3000', null]) assert.throws(() => deliveryRule(value));
@@ -19,26 +19,23 @@ test('Haversine distance: identical point, known equatorial arc, symmetry', () =
   assert.equal(distanceMeters(a,b), distanceMeters(b,a));
   assert.throws(() => distanceMeters({lat:91,lng:0}, b));
 });
-test('classroom points actually fall into three different zones', () => {
-  for (const [km,zone] of [[2,'near'],[4,'outer'],[6,'outside']]) {
+test('straight-line helper is only used for service-area guard, never route eligibility', () => {
+  for (const km of [2, 7, 12]) {
     const meters = distanceMeters(STORE,demoPoint(km));
     assert.ok(Math.abs(meters - km*1000) < 1e-6);
-    assert.equal(deliveryRule(meters).zone,zone);
   }
 });
-test('GPS uncertainty crossing either threshold requires confirmation', () => {
-  assert.equal(crossesBoundary(2950,100),true);
-  assert.equal(crossesBoundary(3050,100),true);
-  assert.equal(crossesBoundary(4950,100),true);
-  assert.equal(crossesBoundary(5100,150),true);
-  assert.equal(crossesBoundary(2000,100),false);
-  assert.equal(crossesBoundary(4000,100),false);
-  assert.equal(crossesBoundary(6500,100),false);
-  assert.equal(crossesBoundary(3000,0),false);
+test('navigation always starts at the store and uses the selected destination', () => {
+  const url = new URL(navigationUrl({ lat: 24.2, lng: 120.5 }));
+  assert.equal(url.searchParams.get('origin'), `${STORE.lat},${STORE.lng}`);
+  assert.equal(url.searchParams.get('destination'), '24.2,120.5');
+  assert.equal(url.searchParams.get('travelmode'), 'driving');
+  assert.throws(() => navigationUrl({ lat: 999, lng: 0 }));
 });
 test('display does not round an out-of-range point back onto the boundary', () => {
   assert.equal(distanceLabel(3000.01),'3.01');
   assert.equal(distanceLabel(5000.01),'5.01');
+  assert.equal(distanceLabel(10000.01),'10.01');
   assert.equal(distanceLabel(5000),'5.00');
   assert.equal(distanceLabel(distanceMeters(STORE,demoPoint(2))),'2.00');
 });

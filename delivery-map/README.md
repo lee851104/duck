@@ -1,14 +1,12 @@
-# 菜騎鴨外送範圍教學示範
+# 菜騎鴨外送道路距離查詢
 
-輸入地址、使用定位或直接在地圖選點，查看是否在菜騎鴨的 3／5 公里外送範圍內。
+輸入地址、定位或在地圖選點，依店家出發的汽車道路路線判斷外送：5 公里內低消 300 元；超過 5 至 10 公里須確認店家人手；超過 10 公里因人手不足無法配送。已移除原先的 3／5 公里直線範圍圈。
 
-採單一畫面的查詢工作區：頂部搜尋與定位，地圖填滿剩餘高度；選定位置後才顯示精簡的外送結果與低消。完整須知、店址與資料來源收在原頁面對話框。一般桌面與手機尺寸不需捲動；極矮視窗或放大文字時允許自然捲動，避免裁切操作。地圖支援滾輪縮放，也可用方向鍵移動後按 Enter 選擇中心。
+本目錄獨立於 Flask 庫存系統，不讀寫營運資料、不受理訂單。前端為 Vite + Leaflet，路線入口為 Vercel Node.js Function `api/route.js`。
 
-本目錄是獨立的 Vite + Leaflet 靜態網站，可單獨複製或建立另一個 Git 儲存庫。不依賴旁邊的 Flask 庫存系統、資料庫或 Python 環境；不會讀寫店家營運資料，也不提供訂購功能。
+## 本機預覽
 
-## 本機啟動
-
-需要 Node.js 22.12 以上或 24 LTS。
+需要 Node.js 22.12 以上（建議 24 LTS）。
 
 ```powershell
 cd delivery-map
@@ -16,7 +14,7 @@ npm ci
 npm run dev
 ```
 
-開啟 http://127.0.0.1:4174 。
+開啟 http://127.0.0.1:4174 。未設定 Redis 時，本機 Vite 僅使用 OSRM，採單一程序每 1.1 秒最多一次限流，不允許 Google 呼叫。此例外不會進入 Vercel 正式 Function。
 
 ```powershell
 npm test
@@ -24,54 +22,74 @@ npm run build
 npm run preview
 ```
 
-`dev` 與 `preview` 使用同一個連接埠，請擇一執行。`preview` 提供已建置的 `dist`。
+`dev` 與 `preview` 同用 4174 連接埠，請擇一執行。一般純靜態伺服器沒有 `/api/route`；Vite preview 已接本機 middleware。
 
-## 部署到 Vercel
+## Google 優先、OSRM 備援
 
-正式網址：https://duck-delivery-map.vercel.app/ 。Vercel 專案為 `lee851104s-projects/duck-delivery-map`，目前以本目錄透過 CLI 部署，未連結整份庫存系統儲存庫的自動部署。更新後在本目錄執行 `vercel deploy --prod`。目前上線的是 OpenStreetMap／國土測繪中心版本，尚未啟用 Google Maps 或 Google 用量切換功能。
+1. 後端驗證收貨點；店家起點固定，客戶不能指定 Google 參數或上游網址。
+2. Google 兩把金鑰與共用 Redis 計數器就緒時，以原子 Lua 操作先預留一次用量。
+3. 使用 Google Routes API 的 `DRIVE / TRAFFIC_UNAWARE`，取得道路公尺數與路線。不要求即時路況、機車路線或其他 Pro／Enterprise 功能。
+4. 同一預留名額最多呼叫一次 Google Routes、一次 Maps Static。Google 路線畫在 Google 路線圖，完整保留 logo 與 attribution。圖像由後端取得，金鑰不進前端；不寫磁碟、不建立 CDN 快取。
+5. Google 未設定、預算不足或出錯時，切換 OpenStreetMap / OSRM，在 Leaflet 畫出道路軌跡，清楚標示來源可能與 Google 不同。失敗的 Google 請求不退還計數、不自動重試。
+6. OSRM 公開服務由 Redis `SET NX PX` 限制全站每 1.1 秒最多一次。Redis 連不上時不呼叫 Google，也不繞過 OSRM 公開服務限流；顯示無法判定與免費 Google 導航連結。絕不以直線距離冒充道路結果。
 
-這是經店家同意的非商業教學範例。先登入自己的 Vercel 帳號，再於本目錄執行：
+Google 路線圖是不可拖曳的靜態圖；按「調整收貨位置」回到互動選點地圖。這讓路線與地圖請求都由後端計數，不暴露可被繞過計數器呼叫的 Google 瀏覽器金鑰。OSRM 地圖維持拖曳、縮放及正射影像切換。
+
+## 啟用設定
+
+完整步驟見 [Google／Redis 設定說明](docs/google-osrm-setup.md)。參照 `.env.example` 將值填入 `.env.local`，不要覆蓋現有 Vercel OIDC 設定。正式環境在 Vercel 專案的 Environment Variables 設定。
+
+| 變數 | 用途 |
+|---|---|
+| `GOOGLE_ROUTES_API_KEY` | 限定 Routes API 的伺服器金鑰 |
+| `GOOGLE_STATIC_MAPS_API_KEY` | 限定 Maps Static API 的伺服器金鑰 |
+| `UPSTASH_REDIS_REST_URL` | 共用持久化 Redis 的 HTTPS REST 網址 |
+| `UPSTASH_REDIS_REST_TOKEN` | Redis REST 憑證，只放後端 |
+| `GOOGLE_MONTHLY_LIMIT` | 每月 Google 配對請求上限，預設／最高 9,000 |
+| `GOOGLE_DAILY_LIMIT` | 每日 Google 配對請求上限，預設／最高 250 |
+| `OSRM_BASE_URL` | 預設 `https://routing.openstreetmap.de/routed-car`；可替換為自架 HTTPS OSRM 汽車服務 |
+
+Redis 必須先由管理者初始化；不存在或損毀的用量帳本不會自動從零重建。無金鑰的 OSRM 模式仍需 Redis，以限制公開服務用量。不要刪除 Redis 帳本或設定到期時間。
+
+### 免費額度邊界
+
+- 截至 2026-10-03，Google Compute Routes Essentials 與 Maps Static 各有每月 10,000 次免費額度，按 SKU、帳務帳戶合併計算。本程式預設上限 9,000，另有每日 250 次限制（31 天最多 7,750 次），不是 Google 官方免費額度本身。
+- 計數採美國太平洋日期；帳本跨月自動歸零。預留後即使發生網路錯誤仍計數，避免未知計費結果被當成免費。
+- 這是本應用程式的請求限額，不是 Google 帳戶的零費用保證。同帳務帳戶其他專案、其他程式或外洩金鑰的用量不由此程式掌握。必須扣除既有用量、保留相應額度，並設定 Google Cloud 可用的 API 配額與預算通知。預算通知不會自動停止計費。
+- Vercel、Redis、圖磚與地址服務各有自己的免費額度及條款；不能因 Google 有備援就認定所有服務無限免費。
+- OSRM 公開服務僅供低流量示範，無可用性保證，禁止大量呼叫；流量成長時須自架或使用適合的託管服務。
+
+## 距離與介面
+
+- 起點：`24.2739442, 120.5453111`，菜騎鴨，臺中市清水區中社路 102-21 號。
+- 分類用供應商原始公尺數：5,000 公尺屬可送；10,000 公尺屬須確認。顯示向上取到 0.01 公里，避免剛超界卻看起來在界內。
+- 汽車路線不等同機車路線，也不保證與 Google Maps App 在不同時間／設定下所選路線相同。
+- OSRM 限定起終點附近 100 公尺內有道路。定位誤差超過 100 公尺時先要求確認位置，不用直線誤差推算道路界線。
+- 為限制濫用，只查詢店家周圍 60 公里內的點；此直線檢查僅作查詢區域限制，不拿來判定外送。
+- 地址搜尋沿用 Photon；道路查詢取消過期結果，重設／重新輸入不會被舊回應覆蓋。
+- 未達低消、運費與團購計算方式尚未在新規則中確認，顯示請洽店家，不沿用舊的 100／300 元分級或 20 元運費。
+
+## 部署
+
+Vercel 專案：`lee851104s-projects/duck-delivery-map`。既有網址：https://duck-delivery-map.vercel.app/ 。Root Directory 使用 `delivery-map`，不要部署整份庫存系統。
 
 ```powershell
-npx vercel login
-npx vercel
+vercel env ls
+vercel deploy
+# 完成 Preview 上的 Google 與 OSRM 實測後
+vercel deploy --prod
 ```
 
-先檢查 Preview 部署，確定後：
+本版新增後端 Function，不能只上傳 `dist` 到靜態主機。正式與 Preview 應使用同一 Redis 帳本，避免每次部署或分支重新取得免費額度；若用獨立帳本，須由管理者另外分配同帳務帳戶的用量。
 
-```powershell
-npx vercel --prod
-```
+## 隱私與驗證
 
-若由 GitHub 匯入整份儲存庫，Vercel 的 **Root Directory 必須設為 `delivery-map`**。若另建僅含本目錄內容的儲存庫，Root Directory 使用根目錄。Framework 選 Vite，Build Command 為 `npm run build`，Output Directory 為 `dist`。已有 `vercel.json`，不需要環境變數、API 金鑰或資料庫。
+`public/privacy.html` 說明供應商收到的資料。路線採 POST、回應 `no-store`；程式不持久化住址、座標或路線，Redis 僅保存用量與限流鎖。供應商仍可能記錄請求。
 
-不要把庫存系統的本機資料、`.env`、備份或帳號資料放到這個目錄。推送本專案時只納入此目錄的原始碼與 lockfile；`dist`、`node_modules`、`.qa`、`.vercel` 已忽略。
+`npm test` 包含邊界、來源切換、Google 錯誤及地圖失敗、預算失效、限流、道路吸附限制、請求驗證與憑證不外洩。模擬測試不代表 Google 金鑰、帳務與 Redis 已啟用，仍須完成設定文件中的實際連線驗證。
 
-## 距離與規則
+2026-10-03 本機驗證：30 項測試及 Vite build 通過；瀏覽器實查 OSRM 清水車站 4.01 公里、沙鹿車站 7.31 公里、大甲車站 13.35 公里，分別顯示可送／須確認人手／無法配送。390px 手機與 1280px 桌面寬度無水平溢出，路線及起終點可見，瀏覽器未見錯誤。此為當次路線資料，未來道路更新可能改變數值。
 
-- 店家座標：`24.2739442, 120.5453111`，依使用者提供的 [Google 地圖店家連結](https://maps.app.goo.gl/ThLryBDRxGa6YcFg6)，於 2026-10-02 確認。店家地址：臺中市清水區中社路 102-21 號。
-- 圓圈使用直線球面距離，不是實際行車距離。店家與規則設定在 `src/rules.js`，介面文字在 `index.html` 與 `src/main.js`。
-- 距離 ≤ 3,000 公尺：消費滿 100 元免運。
-- 3,000 < 距離 ≤ 5,000 公尺：消費滿 300 元免運。
-- 範圍內未達低消：20 元／趟。團購商品不計入低消。
-- 距離 > 5,000 公尺：不外送，提示來店自取。
-- 分類使用未四捨五入距離，顯示值向上取到 0.01 公里，避免 5,001 公尺被顯示成 5.00 公里而引起誤解。
-- 一般訂購截止 15:00；台中港重劃區僅免除此時間限制，15:00 後仍不提供蔬果處理。沒有該區可靠邊界資料，因此不自動認定此例外，也不改變距離判斷。
-- 16:00 為出發時間，不是保證抵達時間。完整配送／寄放／保冰與社群通知規則可展開查看。
-- 定位精度若跨越 3 或 5 公里界線，顯示「請確認位置」，不直接承諾可送或低消。
+2026-10-03 雲端驗證：Redis 原子並行整合檢查通過；Google Preview 實查清水車站取得 3,908 公尺及 Google 路線圖片。另一個 Preview 僅覆寫 `GOOGLE_MONTHLY_LIMIT=0`，同一位置回傳 OSRM 4,007.4 公尺及 `budget-limit`，Google 帳本前後均為 7，確認達限備援未增加 Google 計數。用量帳本依管理者確認的本月零既有用量初始化一次，後續測試預留名額均保留，不重設計數。
 
-## 地圖、查詢與限制
-
-- 地圖左上角可切換「街道圖／正射影像」，切換保留位置、縮放與查詢結果。正射影像使用國土測繪中心 [PHOTO2 WMTS](https://maps.nlsc.gov.tw/S09SOA/pro/Wmts_ajax_main.jsp)，圖磚網址為 `https://wmts.nlsc.gov.tw/wmts/PHOTO2/default/GoogleMapsCompatible/{z}/{y}/{x}`，最高縮放層級 19，不需 Google API 金鑰。各區拍攝時間不同，並非即時影像；服務或圖資覆蓋不可用時可切回街道圖。已將圖磚來源加入 Vercel CSP。
-- 使用 [Leaflet](https://leafletjs.com/)、[OpenStreetMap 標準底圖](https://operations.osmfoundation.org/policies/tiles/) 與 [Photon 公開示範地理編碼服務](https://github.com/komoot/photon#demo-server)。不使用 Google Maps API，也不會因這個版本產生 Google Maps API 費用。
-- Photon 是盡力提供的公開服務，沒有可用性保證；適合低流量教學示範，不適合大量學生同時高頻搜尋。輸入至少 2 個字、停頓 700 毫秒後，使用 Photon 的部分名稱與容錯搜尋列出建議；中文輸入法選字期間不查詢。單一分頁請求至少間隔 1.2 秒，最多快取 30 組結果於記憶體。輸入改變時取消舊查詢、阻擋過期結果；支援上下鍵選取與 Escape 關閉。也可按搜尋鈕完整查詢。
-- 開放資料的台灣門牌涵蓋不完整。按搜尋鈕查不到完整門牌時會嘗試同一道路並清楚提示；自動建議不額外發送備援查詢。所有搜尋候選都必須先確認地圖位置。也可直接點圖，或使用定位與地圖中心選點。不能把道路中心點當成精確住宅位置。
-- 地址文字會傳送給 Photon。定位座標僅在瀏覽器計算，不做反向地址查詢；地圖供應商仍會收到 IP、來源網址與目前視野的圖磚請求。本站沒有分析追蹤、帳號或資料庫，不記錄地址與定位。
-- 定位需要 HTTPS 或 localhost，以及使用者授權。測試時可搜尋公開地標或直接在地圖選點，不必提交真實住址。地圖支援滑鼠滾輪縮放。
-- 沒有離線底圖或大量預抓；保留 OSM attribution 與正常 Referer／瀏覽器快取。若使用量增加，須換成有相應額度的圖磚與地址服務。更換服務時也更新 `vercel.json` 的 CSP 白名單。
-
-## 驗證
-
-`npm test` 驗證精確 3／5 公里及剛超界、非法座標、距離公式、定位誤差、顯示值、中文地址分段與外部搜尋結果驗證。
-
-本機已實測公開地標「清水車站」搜尋、選擇候選、確認位置及結果，約 2.68 公里；3 公里內、3 至 5 公里及超過 5 公里的結果已在瀏覽器檢查。真實手機 GPS 精度與權限流程仍須於手機授權後驗證。公開 Vercel 網址需部署後另外確認。
+同日正式部署至 https://duck-delivery-map.vercel.app/ ，未登入瀏覽器實查清水車站，顯示「可以外送／道路 3.91 公里／低消 300 元」及完整 Google 路線圖；圖片載入正常，1280px 寬度無水平溢出，瀏覽器未見警告或錯誤。正式查詢後帳本為 8，保留所有測試預留名額。
