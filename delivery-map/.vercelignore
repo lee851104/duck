@@ -1,0 +1,7 @@
+node_modules
+dist
+.qa
+.env*
+tests
+*.log
+README.md

@@ -1,6 +1,8 @@
 # Original business workbooks stay local.
 /原始資料/
 /raw_data/
+# LINE chat exports contain customer messages and stay local.
+/[[]LINE[]]*.txt
 *.xlsx
 *.xls
 ~$*
@@ -42,3 +44,6 @@ Thumbs.db
 
 # Offline owner review packets contain real business data.
 /output/owner-review/
+
+# Local transfer packages contain operational data and bundled runtimes.
+/output/portable-release/

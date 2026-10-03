@@ -75,6 +75,25 @@ def save_daily_sale():
     return jsonify(post_sheet(get_db(), request.get_json(), session['user'], today()))
 
 
+@api.get('/api/daily-sales/line-orders')
+def daily_sale_line_orders():
+    from .line_sales import pending_orders
+    return jsonify(orders=pending_orders(get_db()), skipped=[], source='LINE 接單')
+
+
+@api.post('/api/daily-sales/line-orders/excel')
+def daily_sale_line_excel():
+    """只讀檔案、列出要核對的訂單；真正扣庫存要等每日銷售單送出。"""
+    from .line_sales import orders_from_excel
+    upload = request.files.get('file')
+    if not upload or not upload.filename:
+        raise Problem('請選擇 LINE 接單匯出的 Excel 檔')
+    if not upload.filename.lower().endswith('.xlsx'):
+        raise Problem('請選擇 LINE 接單匯出的 .xlsx 檔')
+    orders, skipped = orders_from_excel(get_db(), upload.stream)
+    return jsonify(orders=orders, skipped=skipped, source=upload.filename)
+
+
 @api.get('/api/daily-sales')
 def daily_sale_history():
     rows = [dict(r) for r in get_db().execute('''SELECT d.*,

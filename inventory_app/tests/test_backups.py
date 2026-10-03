@@ -21,12 +21,15 @@ class BackupTest(unittest.TestCase):
         (self.root/'media'/'photo.jpg').write_bytes(b'original-image')
 
     def test_restore_database_and_images(self):
+        (self.root/'exports').mkdir()
+        (self.root/'exports'/'invoice.xlsx').write_bytes(b'original-invoice-export')
         archive=create_backup(self.root/'db.sqlite',self.root/'media',self.root/'backups')
         restore_backup(archive,self.root/'restored')
         conn=connect_db(self.root/'restored'/'inventory.sqlite3')
         self.assertEqual(conn.execute('SELECT value FROM metadata').fetchone()[0],'保留')
         conn.close()
         self.assertEqual((self.root/'restored'/'media'/'photo.jpg').read_bytes(),b'original-image')
+        self.assertEqual((self.root/'restored'/'exports'/'invoice.xlsx').read_bytes(),b'original-invoice-export')
 
     def test_traversal_rejected(self):
         archive=self.root/'evil.zip'

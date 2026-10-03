@@ -54,3 +54,36 @@ CREATE TABLE IF NOT EXISTS daily_sale_lines(
 CREATE TABLE IF NOT EXISTS daily_sale_movements(
  line_id INTEGER NOT NULL REFERENCES daily_sale_lines(id),
  movement_id INTEGER NOT NULL UNIQUE REFERENCES movements(id));
+CREATE TABLE IF NOT EXISTS line_chats(
+ chat TEXT PRIMARY KEY, last_on TEXT NOT NULL, last_at TEXT NOT NULL, message_count INTEGER NOT NULL,
+ tail TEXT NOT NULL, menu TEXT, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS line_imports(
+ id INTEGER PRIMARY KEY, chat TEXT NOT NULL, filename TEXT NOT NULL, created_at TEXT NOT NULL, actor TEXT NOT NULL,
+ total_messages INTEGER NOT NULL, new_messages INTEGER NOT NULL, customer_messages INTEGER NOT NULL,
+ missing_messages INTEGER NOT NULL DEFAULT 0,
+ status TEXT NOT NULL CHECK(status IN ('baseline','empty','pending','converting','done','failed')),
+ error TEXT, model TEXT, usage TEXT, cost TEXT, started_at TEXT, converted_at TEXT);
+CREATE TABLE IF NOT EXISTS line_messages(
+ id INTEGER PRIMARY KEY, import_id INTEGER NOT NULL REFERENCES line_imports(id),
+ sent_on TEXT NOT NULL, sent_at TEXT NOT NULL,
+ kind TEXT NOT NULL CHECK(kind IN ('customer','staff','image','recall','other')), raw TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS line_messages_import ON line_messages(import_id, id);
+CREATE TABLE IF NOT EXISTS line_orders(
+ id INTEGER PRIMARY KEY, import_id INTEGER NOT NULL REFERENCES line_imports(id),
+ sent_on TEXT NOT NULL, sent_at TEXT NOT NULL, customer TEXT NOT NULL, location TEXT NOT NULL,
+ action TEXT NOT NULL, carrier TEXT NOT NULL, payment TEXT NOT NULL, note TEXT NOT NULL,
+ needs_review INTEGER NOT NULL CHECK(needs_review IN (0,1)), review_reason TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('open','done','dismissed')), source_ids TEXT NOT NULL,
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1,
+ edited_at TEXT);
+CREATE INDEX IF NOT EXISTS line_orders_status ON line_orders(status, sent_on, sent_at);
+CREATE TABLE IF NOT EXISTS line_order_items(
+ id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES line_orders(id),
+ name TEXT NOT NULL, product_id INTEGER REFERENCES products(id), quantity TEXT, unit TEXT NOT NULL,
+ unit_price TEXT, processing TEXT NOT NULL, note TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS line_order_items_order ON line_order_items(order_id, id);
+-- LINE 訂單帶入哪張每日銷售單；銷售單沖銷後，訂單可以重新帶入。
+CREATE TABLE IF NOT EXISTS line_order_sales(
+ order_id INTEGER NOT NULL REFERENCES line_orders(id), sheet_id INTEGER NOT NULL REFERENCES daily_sales(id),
+ created_at TEXT NOT NULL, PRIMARY KEY(order_id, sheet_id));
+CREATE INDEX IF NOT EXISTS line_order_sales_sheet ON line_order_sales(sheet_id);

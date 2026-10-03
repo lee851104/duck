@@ -64,6 +64,8 @@ def create_app(config=None):
     app.register_blueprint(api)
     from .shop_api import shop
     app.register_blueprint(shop)
+    from .line_orders import line_orders
+    app.register_blueprint(line_orders)
     from .excel_sync import ExcelSync
     from .cloud_excel import CloudExcelSync
     app.extensions['excel_sync'] = CloudExcelSync(app) if cloud else ExcelSync(app)
@@ -103,8 +105,9 @@ def create_app(config=None):
         if (request.method in {'POST', 'PATCH', 'PUT', 'DELETE'} and response.status_code < 300
                 and request.path.startswith('/api/')
                 and request.path not in {'/api/login', '/api/logout', '/api/setup',
-                    '/api/daily-sales/preview', '/api/excel-sync', '/api/invoice-exports'}
-                and not request.path.startswith('/api/imports/preview')):
+                    '/api/daily-sales/preview', '/api/daily-sales/line-orders/excel',
+                    '/api/excel-sync', '/api/invoice-exports'}
+                and not request.path.startswith(('/api/imports/preview', '/api/line-orders'))):
             app.extensions['excel_sync'].request()
         return response
 

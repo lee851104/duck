@@ -3,8 +3,9 @@ import {renderMerchant,renderExports,hasStocktakeDrafts,clearStocktakeDrafts} fr
 import {productPhoto} from './product-photo.js';
 import {operation, productPanel, newProduct} from './views/operations.js';
 import {dataManager, importPreview, mappings} from './views/data.js';
+import {renderLineOrders} from './views/line-orders.js';
 
-export const S={view:location.hash==='#inventory'?'inventory':'daily-sales',inventoryMode:'table',savingCounts:false,page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
+export const S={view:{'#inventory':'inventory','#line-orders':'line-orders'}[location.hash]||'daily-sales',inventoryMode:'table',savingCounts:false,page:1,q:'',status:'',category:'',photos:'',catalogSize:24,kind:'',from:'',to:'',productId:'',meta:null,csrf:'',dialogDirty:false,pageSizes:{}};
 export const $=s=>document.querySelector(s);
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const names={out:'缺貨',low:'低庫存',expiring:'即期',expired:'已過期',uncounted:'未盤點',normal:'正常',unmapped:'待對應',independent:'獨立品項'};
@@ -90,6 +91,8 @@ function searchToolbar(includeStatus=true){
 
 async function dailySales(seq){await renderDailySales(seq,()=>seq===generation);}
 
+async function lineOrders(seq){await renderLineOrders(seq,()=>seq===generation);}
+
 async function inventory(seq){await renderMerchant(()=>seq===generation);}
 
 let catalogItems=new Map();
@@ -127,7 +130,7 @@ export async function render(){
   $('#main').dataset.view=S.view;
   document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===S.view));
   try{
-    await ({dashboard,inventory,catalog,history,exports:renderExports,'daily-sales':dailySales}[S.view]||inventory)(seq);
+    await ({dashboard,inventory,catalog,history,exports:renderExports,'daily-sales':dailySales,'line-orders':lineOrders}[S.view]||inventory)(seq);
     if(seq!==generation)return;
 
   }

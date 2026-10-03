@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from .common import Problem, decimal_text, mutate, now, record, valid_date
 from .inventory import get_product, quantity_for
+from .line_sales import check_for_sheet
 from .reservations import reserved_quantity
 
 
@@ -67,7 +68,9 @@ def plan_sheet(conn, command, today):
                 'remaining': decimal_text(available - qty), 'allocations': allocations})
         except Problem as error:
             raise Problem(f"{p['name']}：{error.message}", status=error.status, fields={'product_id': pid}) from None
-    result = {'sold_on': sold_on, 'note': note.strip(), 'items': lines}
+    # 帶入的 LINE 訂單也算進確認碼：換了訂單就要重新預覽。
+    result = {'sold_on': sold_on, 'note': note.strip(), 'items': lines,
+              'line_orders': check_for_sheet(conn, command.get('line_orders'))}
     result['revision'] = hashlib.sha256(json.dumps(result, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     return result
 
@@ -87,6 +90,8 @@ def post_sheet(conn, command, actor, today):
                 mid = record(conn, line['product_id'], a['batch_id'], 'issue',
                     f"每日銷售單 #{sid} · {plan['sold_on']}", a['before'], a['after'], actor)
                 conn.execute('INSERT INTO daily_sale_movements(line_id,movement_id) VALUES(?,?)', (lid, mid))
+        for oid in plan['line_orders']:
+            conn.execute('INSERT INTO line_order_sales(order_id,sheet_id,created_at) VALUES(?,?,?)', (oid, sid, now()))
         return sheet_detail(conn, sid)
     return mutate(conn, command.get('request_id'), {'kind': 'daily_sale', **command}, apply)
 
@@ -103,6 +108,9 @@ def sheet_detail(conn, sid):
             m.before_value,m.after_value FROM movements m JOIN daily_sale_movements d ON d.movement_id=m.id
             WHERE d.line_id=? ORDER BY m.id''', (line['id'],))]
         result['items'].append(line)
+    result['line_orders'] = [dict(r) for r in conn.execute('''SELECT o.id,o.sent_on,o.sent_at,o.location,o.customer
+        FROM line_order_sales s JOIN line_orders o ON o.id=s.order_id WHERE s.sheet_id=?
+        ORDER BY o.sent_on,o.sent_at,o.id''', (sid,))]
     return result
 
 

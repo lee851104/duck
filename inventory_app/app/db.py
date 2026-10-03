@@ -22,6 +22,9 @@ def init_db(conn):
     columns = {row[1] for row in conn.execute('PRAGMA table_info(catalog_cards)')}
     if 'independent' not in columns:
         conn.execute('ALTER TABLE catalog_cards ADD COLUMN independent INTEGER NOT NULL DEFAULT 0')
+    # 舊資料庫補上「老闆手動修改 LINE 訂單」的時間欄位。
+    if 'edited_at' not in {row[1] for row in conn.execute('PRAGMA table_info(line_orders)')}:
+        conn.execute('ALTER TABLE line_orders ADD COLUMN edited_at TEXT')
     conn.executescript(Path(__file__).with_name('shop_schema.sql').read_text('utf-8'))
 
 

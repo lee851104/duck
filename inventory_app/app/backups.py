@@ -40,6 +40,9 @@ def create_backup(db_path, media_dir, backup_dir):
             files = [('inventory.sqlite3', snapshot)]
             if media_dir.exists():
                 files += [('media/'+p.name, p) for p in media_dir.iterdir() if p.is_file()]
+            exports_dir = db_path.parent/'exports'
+            if exports_dir.exists():
+                files += [('exports/'+p.name, p) for p in exports_dir.iterdir() if p.is_file()]
             manifest = {}
             with ZipFile(partial, 'w', ZIP_DEFLATED) as z:
                 for name, path in files:

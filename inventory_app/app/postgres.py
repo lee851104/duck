@@ -12,12 +12,14 @@ from collections.abc import Mapping
 
 IDENTITY_TABLES = frozenset(('users', 'staff_accounts', 'account_events', 'products',
     'batches', 'movements', 'catalog_cards', 'invoice_items', 'backup_runs',
-    'recipes', 'order_events', 'daily_sales', 'daily_sale_lines'))
+    'recipes', 'order_events', 'daily_sales', 'daily_sale_lines',
+    'line_imports', 'line_messages', 'line_orders', 'line_order_items'))
 TABLES = ('users', 'staff_accounts', 'account_events', 'products', 'batches',
     'movements', 'requests', 'imports', 'catalog_cards', 'invoice_items',
     'invoice_exports', 'backup_runs', 'metadata', 'shop_products', 'recipes',
     'recipe_items', 'customer_orders', 'order_items', 'reservations',
-    'order_events', 'shop_attempts', 'daily_sales', 'daily_sale_lines', 'daily_sale_movements')
+    'order_events', 'shop_attempts', 'daily_sales', 'daily_sale_lines', 'daily_sale_movements',
+    'line_chats', 'line_imports', 'line_messages', 'line_orders', 'line_order_items', 'line_order_sales')
 # Tokenize quoted regions first: placeholders inside them are never interpreted.
 TOKENS = re.compile(r"'(?:''|[^'])*'|\"(?:\"\"|[^\"])*\"|--[^\n]*(?:\n|$)|/\*.*?\*/|::|:[A-Za-z_][A-Za-z_0-9]*|\?|;|.", re.S)
 
