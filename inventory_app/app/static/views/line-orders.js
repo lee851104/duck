@@ -9,6 +9,18 @@ const savedSort=()=>{try{return localStorage.getItem(sortKey)==='old'?'old':'new
 let filter={status:'open',range:'all',from:'',to:'',page:1,sort:savedSort()},busy=false,notice=null;
 // 目前選到的訂單：重新整理後先找同一筆，找不到（例如剛標完成）就選同位置的下一筆。
 let pick={id:null,index:0},current=null;
+// 摺起來的日期：待處理／已完成／不是訂單分開記在這台電腦，最多記最近 120 天。
+const foldKey='duck-line-folded';
+let folded=(()=>{try{const v=JSON.parse(localStorage.getItem(foldKey));return v&&typeof v==='object'?v:{};}catch{return {};}})();
+const isFolded=d=>(folded[filter.status]||[]).includes(d);
+const visible=()=>current?current.items.filter(o=>!isFolded(o.sent_on)):[];
+const pageDays=()=>[...new Set((current?.items||[]).map(o=>o.sent_on))];
+function setFolded(days,on){
+  const set=new Set(folded[filter.status]||[]);
+  for(const d of days)on?set.add(d):set.delete(d);
+  folded={...folded,[filter.status]:[...set].sort().slice(-120)};
+  try{localStorage.setItem(foldKey,JSON.stringify(folded));}catch{}
+}
 
 const shortDate=d=>d?d.slice(5).replace('-','/'):'';
 const stamp=iso=>iso?`${shortDate(iso.slice(0,10))} ${iso.slice(11,16)}`:'';
@@ -114,12 +126,14 @@ function tags(o){
 
 // 中間：一次只看一筆，左右對照「客人原文」和「AI 整理的訂單」，按鈕固定在底部。
 function detail(o){
+  if(!o&&current.items.length)return '<div class="line-detail-empty"><strong>這一頁的日期都摺起來了</strong><p>點左邊的日期就能展開，或按「全部展開」。</p></div>';
   if(!o){
     const first=!current.total&&filter.status==='open'&&filter.range==='all';
     return `<div class="line-detail-empty">${first?`<span class="line-drop-icon" aria-hidden="true">⇪</span><strong>把 LINE 聊天檔拖到這裡</strong><p>檔名像「[LINE]菜騎鴨-….txt」，AI 會把新留言整理成訂單。</p><button id="line-pick-empty" class="primary">選擇檔案</button>`
       :`<strong>${filter.status==='open'?'沒有待處理的訂單':'這裡沒有訂單'}</strong><p>${filter.range!=='all'?'換個時間看看，或按「全部」。':{open:'匯入新的 LINE 聊天檔，新訂單就會出現在左邊。',done:'按「✓ 已完成」的訂單會放在這裡。',dismissed:'按「不是訂單」的留言會放在這裡。'}[filter.status]}</p>`}</div>`;
   }
-  const at=current.items.indexOf(o),position=(current.page-1)*current.page_size+at+1;
+  const vis=visible(),at=vis.indexOf(o),position=(current.page-1)*current.page_size+current.items.indexOf(o)+1;
+  const noPrev=at<=0&&current.page<=1,noNext=at>=vis.length-1&&current.page>=pages(current);
   const meta=[['載具',o.carrier],['付款',o.payment],['備註',o.note]].filter(([,v])=>v).map(([k,v])=>`<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
   const version=`data-id="${o.id}" data-version="${o.version}"`;
   const actions=o.status==='open'
@@ -136,7 +150,7 @@ function detail(o){
         <div class="line-scroll"><ul class="line-items">${o.items.map(item).join('')||'<li class="line-empty-items">沒有辨識出品項，請看左邊原文</li>'}</ul>
         ${meta?`<dl class="line-meta">${meta}</dl>`:''}</div></section>
     </div>
-    <footer class="line-actions">${actions}<span class="line-step" title="鍵盤 ↑ ↓ 也可以切換"><button data-line-step="-1" aria-label="上一筆" ${position<=1?'disabled':''}>‹</button><span>${position} / ${current.total}</span><button data-line-step="1" aria-label="下一筆" ${position>=current.total?'disabled':''}>›</button></span></footer>
+    <footer class="line-actions">${actions}<span class="line-step" title="鍵盤 ↑ ↓ 也可以切換"><button data-line-step="-1" aria-label="上一筆" ${noPrev?'disabled':''}>‹</button><span>${position} / ${current.total}</span><button data-line-step="1" aria-label="下一筆" ${noNext?'disabled':''}>›</button></span></footer>
   </article>`;
 }
 
@@ -149,21 +163,39 @@ function row(o,active){
     <span class="line-row-main"><span class="line-row-top"><strong>${esc(o.location||'（沒寫地點）')}</strong>${tags(o)}<small>${esc(o.customer)}</small></span><span class="line-row-items">${esc(preview)||'沒有辨識出品項'}</span></span></button>`;
 }
 
-// 左邊清單：待處理時，這次匯入新增的在最上面，之前還沒處理的在下面。
-// 左邊清單：依留言時間排（新到舊或舊到新），每天一個標題，捲動時標題停在上方。
+// 左邊清單：依留言時間排（新到舊或舊到新），每天一個區塊；點日期條可以摺起那一天，捲動時日期條停在上方。
+// 摺起來時，日期條上仍顯示「新」「需確認」的筆數，不會漏看。
 function orderList(data,chosen){
   if(!data.items.length)return `<p class="line-list-empty">${filter.status==='open'?'沒有待處理的訂單':'這裡沒有訂單'}</p>`;
-  const perDay={};
-  for(const o of data.items)perDay[o.sent_on]=(perDay[o.sent_on]||0)+1;
-  let html='',section=null;
-  for(const o of data.items){
-    if(o.sent_on!==section){
-      section=o.sent_on;const tag=dayTag(section);
-      html+=`<h2 class="line-group${tag==='今天'?' today':''}"><strong>${esc(shortDate(section))} 週${weekday(section)}</strong>${tag?`<em>${tag}</em>`:''}<span>${perDay[section]} 筆</span></h2>`;
-    }
-    html+=row(o,o===chosen);
-  }
-  return html;
+  const days=[];
+  for(const o of data.items){if(days.at(-1)?.date!==o.sent_on)days.push({date:o.sent_on,items:[]});days.at(-1).items.push(o);}
+  return days.map(({date,items})=>{
+    const tag=dayTag(date),shut=isFolded(date);
+    const fresh=items.filter(o=>o.is_new&&o.status==='open').length,review=items.filter(o=>o.needs_review).length;
+    return `<section class="line-day${shut?' folded':''}" data-day="${date}"><h2 class="line-group${tag==='今天'?' today':''}"><button class="line-day-toggle" data-line-day="${date}" aria-expanded="${!shut}" title="點一下摺起／展開這一天"><span class="line-chevron" aria-hidden="true"></span><strong>${esc(shortDate(date))} 週${weekday(date)}</strong>${tag?`<em>${tag}</em>`:''}${fresh?`<b class="line-day-hint new">新 ${fresh}</b>`:''}${review?`<b class="line-day-hint review">需確認 ${review}</b>`:''}<span class="line-day-count">${items.length} 筆</span></button></h2>
+      <div class="line-day-rows">${items.map(o=>row(o,o===chosen)).join('')}</div></section>`;
+  }).join('');
+}
+
+const foldAllLabel=()=>{const days=pageDays();return days.length&&days.every(isFolded)?'全部展開':'全部摺起';};
+
+// 摺起或展開日期：只切換畫面上的區塊，不重新載入；選到的那筆被摺起來，就改選它後面最近一筆看得到的。
+function foldDays(days,on){
+  setFolded(days,on);
+  document.querySelectorAll('.line-day').forEach(section=>{
+    const shut=isFolded(section.dataset.day);
+    section.classList.toggle('folded',shut);
+    section.querySelector('[data-line-day]').setAttribute('aria-expanded',String(!shut));
+  });
+  if($('#line-fold-all'))$('#line-fold-all').textContent=foldAllLabel();
+  const vis=visible();
+  if(vis.some(o=>o.id===pick.id)){pick.index=vis.findIndex(o=>o.id===pick.id);return;}
+  const all=current.items,at=all.findIndex(o=>o.id===pick.id);
+  const next=at<0?vis[0]:all.slice(at+1).find(o=>!isFolded(o.sent_on))||all.slice(0,at).reverse().find(o=>!isFolded(o.sent_on));
+  if(next){select(next,false);return;}
+  pick={id:null,index:0};
+  document.querySelectorAll('[data-line-pick]').forEach(b=>b.setAttribute('aria-current','false'));
+  $('#line-detail').innerHTML=detail(null);bindDetail();
 }
 
 function summaryList(data){
@@ -184,7 +216,7 @@ function metaLine(data){
   return `<div id="line-meta" class="line-meta-line">${status}${extra?`<button class="text-button line-link attention" data-line-import="${latest.id}">${extra} ›</button>`:''}${data.imports.length?'<button id="line-history" class="text-button line-link">匯入紀錄</button>':''}
       <details class="line-help"><summary>說明</summary><div class="line-help-pop">
         <p><strong>怎麼從 LINE 存聊天？</strong>電腦版 LINE 打開「菜騎鴨」群組 → 右上角選單（≡ 或 ⋮）→「儲存聊天」→ 存成文字檔。每次存同一個位置、覆蓋舊檔就好。</p>
-        <p>也可以直接把 .txt 檔拖到這個畫面任何地方。鍵盤 ↑ ↓ 可以切換訂單。</p>
+        <p>也可以直接把 .txt 檔拖到這個畫面任何地方。鍵盤 ↑ ↓ 可以切換訂單；點日期條可以摺起那一天。</p>
         <p class="line-help-ai">${ai.configured?'<span class="badge normal">OpenAI 已連接</span>':'<span class="badge warning">尚未連接 OpenAI</span>'}<button id="line-check-key" class="text-button line-link">測試連線</button></p></div></details></div>
     <p id="line-progress" class="line-progress" role="status" hidden></p>`;
 }
@@ -215,8 +247,9 @@ export async function renderLineOrders(seq,isCurrent){
   const data=await api('/line-orders?'+new URLSearchParams({status:filter.status,page:filter.page,sort:filter.sort,...period()}));
   if(!isCurrent())return;
   filter.page=data.page;current=data;
-  const chosen=data.items.find(o=>o.id===pick.id)||data.items[Math.min(pick.index,data.items.length-1)]||null;
-  pick={id:chosen?.id??null,index:Math.max(0,data.items.indexOf(chosen))};
+  const vis=visible();
+  const chosen=vis.find(o=>o.id===pick.id)||vis[Math.min(pick.index,vis.length-1)]||null;
+  pick={id:chosen?.id??null,index:Math.max(0,vis.indexOf(chosen))};
   const c=data.counts;
   $('#main').innerHTML=`<div class="line-page">
     <div class="line-heading"><div class="line-title"><h1>LINE 接單</h1>${metaLine(data)}</div>${topTools(data)}</div>
@@ -224,7 +257,7 @@ export async function renderLineOrders(seq,isCurrent){
     <div class="line-work">
       <nav class="panel line-list" aria-label="訂單清單">
         <div class="line-tabs" role="group" aria-label="訂單狀態">${Object.entries(statusNames).map(([s,l])=>`<button data-line-tab="${s}" aria-pressed="${filter.status===s}">${l}<span>${c[s]}</span></button>`).join('')}</div>
-        <div class="line-list-head"><span>依留言時間</span><div class="line-sort" role="group" aria-label="排序">${[['new','新到舊'],['old','舊到新']].map(([v,l])=>`<button data-line-sort="${v}" aria-pressed="${filter.sort===v}">${l}</button>`).join('')}</div></div>
+        <div class="line-list-head"><div class="line-sort" role="group" aria-label="依留言時間排序" title="依留言時間排序">${[['new','新到舊'],['old','舊到新']].map(([v,l])=>`<button data-line-sort="${v}" aria-pressed="${filter.sort===v}">${l}</button>`).join('')}</div>${data.items.length?`<button id="line-fold-all" class="text-button line-fold-all">${foldAllLabel()}</button>`:''}</div>
         <div class="line-list-scroll">${orderList(data,chosen)}</div>${data.total>data.page_size?pager(data,'line-page'):''}</nav>
       <section id="line-detail" class="line-detail" aria-live="polite">${detail(chosen)}</section>
       <aside class="panel line-summary-col" aria-label="商品數量合計"><div class="panel-head"><h2>商品合計</h2><small>${summaryInfo()}</small></div><div class="line-summary-scroll">${summaryList(data)}</div></aside>
@@ -235,20 +268,20 @@ export async function renderLineOrders(seq,isCurrent){
   document.querySelector('[data-line-pick][aria-current="true"]')?.scrollIntoView({block:'nearest'});
 }
 
-function select(o){
-  pick={id:o.id,index:current.items.indexOf(o)};
+function select(o,reveal=true){
+  pick={id:o.id,index:visible().indexOf(o)};
   document.querySelectorAll('[data-line-pick]').forEach(b=>b.setAttribute('aria-current',String(Number(b.dataset.linePick)===o.id)));
   $('#line-detail').innerHTML=detail(o);
   bindDetail();
   document.querySelector(`[data-line-pick="${o.id}"]`)?.scrollIntoView({block:'nearest'});
   // 手機上清單在上、明細在下，點了就捲到明細。
-  if(matchMedia('(max-width:900px)').matches)$('#line-detail').scrollIntoView({block:'start',behavior:'smooth'});
+  if(reveal&&matchMedia('(max-width:900px)').matches)$('#line-detail').scrollIntoView({block:'start',behavior:'smooth'});
 }
 
 async function step(delta){
   if(!current?.items.length)return;
-  const next=pick.index+delta;
-  if(next>=0&&next<current.items.length){select(current.items[next]);return;}
+  const vis=visible(),next=pick.index+delta;
+  if(next>=0&&next<vis.length){select(vis[next]);return;}
   const page=current.page+delta;
   if(page<1||page>pages(current))return;
   filter.page=page;pick={id:null,index:delta>0?0:current.page_size};await rerender();
@@ -283,6 +316,8 @@ function bind(){
   });
   document.querySelectorAll('[data-line-tab]').forEach(b=>b.onclick=async()=>{filter={...filter,status:b.dataset.lineTab,page:1};pick={id:null,index:0};notice=null;await rerender();});
   document.querySelectorAll('[data-action="line-page"]').forEach(b=>b.onclick=async()=>{filter.page=Number(b.dataset.page);pick={id:null,index:0};await rerender();});
+  document.querySelectorAll('[data-line-day]').forEach(b=>b.onclick=()=>foldDays([b.dataset.lineDay],!isFolded(b.dataset.lineDay)));
+  if($('#line-fold-all'))$('#line-fold-all').onclick=()=>{const days=pageDays();foldDays(days,!days.every(isFolded));};
   document.querySelectorAll('[data-line-pick]').forEach(b=>b.onclick=()=>{const o=current.items.find(x=>x.id===Number(b.dataset.linePick));if(o)select(o);});
   document.querySelectorAll('[data-line-import]').forEach(b=>b.onclick=()=>showImport(b.dataset.lineImport).catch(e=>toast(e.message)));
   if($('#line-history'))$('#line-history').onclick=showHistory;

@@ -60,21 +60,34 @@ main:has(> .line-page){padding-top:16px;padding-bottom:14px}
 .line-tabs button span{min-width:22px;padding:0 6px;border-radius:999px;background:#eef0e4;font-size:12px;text-align:center}
 .line-tabs button[aria-pressed=true]{background:#4c652f;color:#fff}
 .line-tabs button[aria-pressed=true] span{background:#ffffff33;color:#fff}
-.line-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px 5px 12px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);flex-shrink:0}
+.line-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);flex-shrink:0}
 .line-sort{display:flex;padding:2px;border:1px solid #d6dcc8;border-radius:9px;background:#fff}
 .line-sort button{min-height:28px!important;padding:2px 10px;border:0;border-radius:7px;background:none;color:#536440;font-size:13px}
 .line-sort button[aria-pressed=true]{background:#4c652f;color:#fff}
 .line-list-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 6px 6px}
 .line-list-empty{margin:0;padding:28px 16px;text-align:center;color:var(--muted)}
-/* 每天一條明顯的分隔：淺綠底＋左邊粗線，捲動時停在上方；今天顏色再深一點。 */
-.line-group{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;margin:12px -6px 4px;padding:7px 12px 7px 10px;background:#e8eedb;border-top:1px solid #d3dcc2;border-bottom:1px solid #d3dcc2;border-left:5px solid #8fa470;color:#2f3b28}
-.line-group:first-child{margin-top:0;border-top:0}
+/* 每天一個區塊：日期條淺綠底＋左邊粗線，捲動時停在上方，點一下可以摺起；今天顏色再深一點。 */
+.line-day+.line-day{margin-top:8px}
+.line-group{position:sticky;top:0;z-index:1;margin:0 -6px 4px;padding:0;background:#e8eedb;border-top:1px solid #d3dcc2;border-bottom:1px solid #d3dcc2;border-left:5px solid #8fa470;color:#2f3b28}
+.line-day:first-child .line-group{border-top:0}
+.line-day.folded .line-group{margin-bottom:0}
+.line-day.folded .line-day-rows{display:none}
+.line-day-toggle{width:100%;min-height:38px!important;display:flex;align-items:center;gap:8px;padding:6px 12px 6px 8px;border:0;border-radius:0;background:none;color:inherit;font:inherit;text-align:left;white-space:nowrap;cursor:pointer}
+.line-day-toggle:hover{background:#00000008}
+.line-chevron{flex-shrink:0;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center}
+.line-chevron::before{content:'';width:7px;height:7px;border-right:2px solid #4c652f;border-bottom:2px solid #4c652f;transform:translateY(-2px) rotate(45deg);transition:transform .15s}
+.line-day.folded .line-chevron::before{transform:translateX(-1px) rotate(-45deg)}
+.line-day-hint{display:none;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700}
+.line-day.folded .line-day-hint{display:inline-block}
+.line-day-hint.new{background:#58a33a;color:#fff}
+.line-day-hint.review{background:#fff1dd;color:#87500b;border:1px solid #f0d3a6}
+.line-fold-all{min-height:28px!important;padding:2px 6px;font-size:13px;font-weight:600;color:#4c652f}
 .line-group strong{font-size:15px;font-weight:700;letter-spacing:.02em}
 .line-group em{padding:1px 9px;border:1px solid #b9c79f;border-radius:999px;background:#fff;color:#4c652f;font-size:12px;font-style:normal;font-weight:700}
 .line-group.today{background:#dbe9c6;border-left-color:#4c652f}
 .line-group.today em{background:#4c652f;border-color:#4c652f;color:#fff}
 .line-new-count{color:#2f6a1f}
-.line-group span{margin-left:auto;font-size:12px;font-weight:600;color:#5f6c52}
+.line-group .line-day-count{margin-left:auto;font-size:12px;font-weight:600;color:#5f6c52}
 .line-row{width:100%;display:grid;grid-template-columns:42px minmax(0,1fr);gap:8px;align-items:center;margin:0 0 2px;padding:6px 8px;border:1px solid transparent;border-left:4px solid transparent;border-radius:9px;background:none;text-align:left;font-weight:400;color:inherit}
 .line-row:hover{background:#f4f6ec}
 .line-row.fresh{border-left-color:#58a33a}
@@ -235,7 +248,7 @@ main:has(> .line-page){padding-top:16px;padding-bottom:14px}
   .line-step{gap:2px}
   .line-step button{min-width:40px}
 }
-@media(prefers-reduced-motion:reduce){.line-progress::before{animation:none}}
+@media(prefers-reduced-motion:reduce){.line-progress::before{animation:none}.line-chevron::before{transition:none}}
 
 /* 每日銷售單：LINE 訂單帶入列與逐筆核對視窗。 */
 .ls-strip{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin:-4px 0 16px;padding:10px 12px;border:1px solid #cfdcbc;border-radius:12px;background:#f3f7ea}
