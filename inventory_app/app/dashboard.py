@@ -43,18 +43,22 @@ def products_with_stock(conn, today):
 
 def list_products(conn, query='', status='', page=1, page_size=10, today=None, category=''):
     items = products_with_stock(conn, today or date.today())
+    categories = {value for value in ([category] if isinstance(category, str) else category) if value}
+    statuses = {value for value in ([status] if isinstance(status, str) else status) if value}
+
+    def matches_status(p, value):
+        if value in {'expiring', 'expired'}:
+            return bool(p[value])
+        if value == 'restock':
+            return p['status'] in {'out', 'low'}
+        return p['status'] == value
+
     def match(p):
         if query and query.casefold() not in (p['code'] + ' ' + p['name']).casefold():
             return False
-        if category and p['category'] != category:
+        if categories and p['category'] not in categories:
             return False
-        if status == 'expiring':
-            return bool(p['expiring'])
-        if status == 'expired':
-            return bool(p['expired'])
-        if status == 'restock':
-            return p['status'] in {'out', 'low'}
-        return not status or p['status'] == status
+        return not statuses or any(matches_status(p, value) for value in statuses)
     return paginate([p for p in items if match(p)], page, page_size)
 
 

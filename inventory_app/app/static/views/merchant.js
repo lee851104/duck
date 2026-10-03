@@ -1,4 +1,4 @@
-import {S,$,api,esc,money,qty,pager,empty,toast,render,categoryButtons} from '../app.js';
+import {S,$,api,esc,money,qty,pager,empty,toast,render,categoryButtons,filterValues} from '../app.js';
 import {productPhoto} from '../product-photo.js';
 
 const drafts=new Map();
@@ -10,7 +10,8 @@ window.addEventListener('beforeunload',event=>{
 });
 
 function toolbar(){
-  return `<div class="toolbar merchant-toolbar"><div class="search-box"><input id="search" type="search" aria-label="搜尋商品" placeholder="找商品名稱或品號" value="${esc(S.q)}"></div>${categoryButtons(S.meta.categories,S.category)}<div class="filters" aria-label="庫存狀態">${[['','全部'],['restock','待補貨'],['uncounted','未盤點'],['expiring','即期']].map(([value,label])=>`<button data-action="filter" data-status="${value}" aria-pressed="${S.status===value}" class="${S.status===value?'selected':''}">${label}</button>`).join('')}</div></div>`;
+  const statuses=filterValues(S.status);
+  return `<div class="toolbar merchant-toolbar"><div class="search-box"><input id="search" type="search" aria-label="搜尋商品" placeholder="找商品名稱或品號" value="${esc(S.q)}"></div>${categoryButtons(S.meta.categories,filterValues(S.category))}<div class="filters" role="group" aria-label="庫存狀態（可複選）">${[['','全部'],['restock','待補貨'],['uncounted','未盤點'],['expiring','即期']].map(([value,label])=>{const selected=value?statuses.includes(value):!statuses.length;return `<button data-action="filter" data-status="${value}" aria-pressed="${selected}" class="${selected?'selected':''}">${label}</button>`;}).join('')}</div></div>`;
 }
 
 function cards(items){
@@ -50,7 +51,10 @@ function updateSummary(){
 }
 
 export async function renderMerchant(isCurrent){
-  const p=await api('/products?'+new URLSearchParams({q:S.q,status:S.status,category:S.category,page:S.page,page_size:10}));
+  const params=new URLSearchParams({q:S.q,page:S.page,page_size:10});
+  filterValues(S.category).forEach(value=>params.append('category',value));
+  filterValues(S.status).forEach(value=>params.append('status',value));
+  const p=await api('/products?'+params);
   if(!isCurrent()||S.savingCounts)return;
   S.page=p.page;
   const table=S.inventoryMode==='table';

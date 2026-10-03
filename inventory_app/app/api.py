@@ -123,8 +123,8 @@ def dashboard():
 
 @api.get('/api/products')
 def products():
-    return jsonify(list_products(get_db(), request.args.get('q',''), request.args.get('status',''),
-                   *page_args(), today(), request.args.get('category','')))
+    return jsonify(list_products(get_db(), request.args.get('q',''), request.args.getlist('status'),
+                   *page_args(), today(), request.args.getlist('category')))
 
 
 def detail(pid):

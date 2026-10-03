@@ -73,9 +73,15 @@ async function dashboard(seq){
     <aside class="panel quick"><h3>日常操作</h3><p>找到商品，幾步完成登記。</p>${action('receive','登記進貨','補貨到店，新增批次','＋')}${action('issue','登記出貨','銷售、報廢或退貨','↗')}${action('count','盤點庫存','確認現場實際數量','✓')}<div class="quick-note">每次庫存變動都會留下紀錄。<br>${d.updated_at?'最後異動 '+esc(d.updated_at.slice(5,16).replace('T',' ')):'尚無庫存異動'}</div></aside></div>`;
 }
 
+export const filterValues=value=>(Array.isArray(value)?value:[value]).filter(Boolean);
+function toggleFilter(selected,value){
+  const values=filterValues(selected);
+  return !value?[]:values.includes(value)?values.filter(item=>item!==value):[...values,value];
+}
 export function categoryButtons(categories,selected,action='category-filter'){
   const choices=['',...new Set(categories.filter(Boolean))];
-  return `<div class="category-filter"><div class="category-filter-heading"><strong>分類</strong><small>亮起表示已選取，再點取消</small></div><div class="category-buttons" role="group" aria-label="商品分類">${choices.map(c=>`<button type="button" data-action="${action}" data-category="${esc(c)}" aria-pressed="${selected===c}"><span class="category-check" aria-hidden="true">✓</span>${esc(c?c.replace(/^[A-Z]/,''):'全部分類')}</button>`).join('')}</div></div>`;
+  const values=filterValues(selected);
+  return `<div class="category-filter"><div class="category-filter-heading"><strong>分類</strong><small>${Array.isArray(selected)?'可複選 · ':''}亮起表示已選取，再點取消</small></div><div class="category-buttons" role="group" aria-label="商品分類">${choices.map(c=>`<button type="button" data-action="${action}" data-category="${esc(c)}" aria-pressed="${c?values.includes(c):!values.length}"><span class="category-check" aria-hidden="true">✓</span>${esc(c?c.replace(/^[A-Z]/,''):'全部分類')}</button>`).join('')}</div></div>`;
 }
 
 function searchToolbar(includeStatus=true){
@@ -150,9 +156,9 @@ document.addEventListener('click',async event=>{
   const b=event.target.closest('[data-action]');if(!b||b.disabled)return;
   try{switch(b.dataset.action){
     case 'page':S.page=Number(b.dataset.page);await render();$('#main').scrollTop=0;break;
-    case 'category-filter':S.category=S.category===b.dataset.category?'':b.dataset.category;S.page=1;await render();break;
+    case 'category-filter':S.category=S.view==='inventory'?toggleFilter(S.category,b.dataset.category):S.category===b.dataset.category?'':b.dataset.category;S.page=1;await render();break;
     case 'photo-filter':S.photos=b.dataset.photos;S.page=1;await render();break;
-    case 'filter':S.status=b.dataset.status;S.page=1;await render();break;
+    case 'filter':S.status=S.view==='inventory'?toggleFilter(S.status,b.dataset.status):b.dataset.status;S.page=1;await render();break;
     case 'filter-dashboard':await navigate('inventory',{status:b.dataset.status});break;
     case 'product':await productPanel(Number(b.dataset.id));break;
     case 'operation':await operation(b.dataset.type,Number(b.dataset.id),b.dataset.batch?Number(b.dataset.batch):null);break;

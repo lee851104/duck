@@ -57,6 +57,52 @@ class QueriesTest(unittest.TestCase):
         self.assertEqual(dashboard['uncounted_products'],products['total'])
         self.assertEqual(dashboard['out_of_stock_products'],0)
 
+    def test_inventory_multi_select_filters_and_paging(self):
+        from contextlib import closing
+        from app.db import connect_db
+        from app.products import create_product
+        from app.dashboard import list_products
+        from datetime import date
+
+        with closing(connect_db(self.app.config['DB_PATH'])) as conn:
+            for index in range(15):
+                product = create_product(conn, {'code':f'M{index:02}', 'name':f'複選商品{index}',
+                    'unit':'包', 'category':['冷凍', '常溫,其他', '飲料'][index % 3],
+                    'minimum':'3'}, 1)
+                conn.execute('UPDATE batches SET quantity=?,saleable=1,expires_on=? WHERE product_id=?',
+                    ([None, '0', '1', '5', '5'][index % 5],
+                     '2026-10-15' if index % 5 in (2, 3) else '2027-01-01', product['id']))
+            # Internal callers retain support for a single string filter.
+            self.assertEqual(list_products(conn, status='uncounted', today=date(2026,10,1))['total'], 4)
+
+        def query(params):
+            response = self.client.get('/api/products', query_string=params)
+            self.assertEqual(response.status_code, 200)
+            return response.get_json()
+
+        all_items = query([('page_size',10)])['items'] + query([('page',2)])['items']
+        selected = [('category','冷凍'), ('category','常溫,其他'),
+                    ('status','restock'), ('status','uncounted'), ('status','expiring')]
+        expected = {p['id'] for p in all_items if p['category'] in {'冷凍','常溫,其他'}
+                    and (p['status'] in {'out','low','uncounted'} or p['expiring'])}
+        result = query(selected)
+        self.assertEqual({p['id'] for p in result['items']}, expected)
+        self.assertEqual(result['total'], len(expected))
+        # Overlapping statuses and duplicate selections must not duplicate products.
+        self.assertEqual(query(selected + [('status','restock'), ('category','冷凍')])['total'], len(expected))
+        searched = query(selected + [('q','商品1')])
+        self.assertEqual({p['id'] for p in searched['items']},
+                         {p['id'] for p in all_items if p['id'] in expected and '商品1' in p['name']})
+
+        statuses = [('status','restock'), ('status','uncounted'), ('status','expiring')]
+        first, second = query(statuses), query(statuses + [('page',2)])
+        self.assertEqual(first['total'], 13)
+        self.assertEqual(len(first['items']), 10)
+        self.assertEqual(len(second['items']), 3)
+        self.assertFalse({p['id'] for p in first['items']} & {p['id'] for p in second['items']})
+        self.assertEqual(query([('category',''), ('status','')])['total'], 16)
+        self.assertEqual(query([('category','不存在'), ('status','uncounted')])['total'], 0)
+
     def test_product_detail_and_batched_count(self):
         batches=self.client.get(f'/api/products/{self.p["id"]}/batches').get_json()
         batch=batches['items'][0]
