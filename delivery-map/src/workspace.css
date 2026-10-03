@@ -103,10 +103,67 @@ dialog::backdrop { background: #233a3255; backdrop-filter: blur(3px); }
 .navigation-link { color: var(--green); text-underline-offset: 3px; white-space: nowrap; }
 .route-detail button { border: 1px solid #abbc9f; border-radius: 6px; color: var(--green); background: #fffefb; padding: 8px 14px; }
 .google-route { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #eef0e9; }
-.google-route img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.google-route button { position: absolute; top: 12px; left: 12px; padding: 12px 16px; border: 1px solid #cdd6c8; border-radius: 8px; background: #fffefb; color: var(--green); box-shadow: 0 2px 10px #24372320; }
+#google-map { width: 100%; height: 100%; }
+.google-shop-pin { position: absolute; width: 48px; height: 66px; transform: translate(-24px, -36px); pointer-events: none; z-index: 1; }
 .result-card[data-state=loading] { background: #eef2ec; }
 .result-card[data-state=loading] h3::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 9px; border-radius: 50%; background: #78956b; animation: route-pulse 1s ease-in-out infinite alternate; }
 @keyframes route-pulse { to { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .result-card[data-state=loading] h3::before { animation: none; } }
 @media (max-width: 760px) { .route-detail { font-size: 11px; gap: 3px 12px; } .route-provider { font-size: 11px; } }
+
+/* Keep both interactive map providers in the same responsive canvas. */
+.app-main { display: grid; grid-template-columns: 300px minmax(0, 1fr); align-items: start; gap: 16px 24px; height: auto; min-height: 0; max-width: 1320px; padding-block: 24px; }
+.lookup-sidebar { min-width: 0; display: flex; flex-direction: column; gap: 20px; padding-top: 8px; }
+.provider-test { padding: 14px; border: 1px dashed #b4c3aa; border-radius: 12px; background: #f0f3e9; }
+.provider-test-title { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--green); }
+.provider-test-title span { font-size: 10px; padding: 3px 6px; background: #e3e9d9; border-radius: 4px; }
+.provider-test-buttons { display: grid; grid-template-columns: 1fr 1.25fr; gap: 5px; margin-top: 10px; }
+.provider-test-buttons button { min-height: 44px; padding: 7px; border: 1px solid #bdcbb3; border-radius: 7px; background: #fffefb; color: var(--green); font-size: 12px; line-height: 1.5; }
+.provider-test-buttons button[aria-pressed=true] { background: var(--green); color: white; border-color: var(--green); }
+#provider-test-note { margin-top: 10px; color: #63705c; font-size: 11px; line-height: 1.7; }
+.lookup-intro { display: flex; flex-direction: column; gap: 10px; }
+.lookup-intro > p:first-child { font-size: 11px; letter-spacing: 1.5px; color: #70806d; }
+.lookup-intro h2 { font-size: 27px; line-height: 1.4; letter-spacing: -.5px; color: var(--green); }
+.lookup-intro > p:last-child { font-size: 13px; color: #6d7c64; line-height: 1.8; }
+.lookup-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+.locate-button { width: 100%; min-height: 46px; gap: 9px; }
+.suggestions-panel { width: 100%; }
+.result-card, .result-card[data-state=confirm] { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 22px; border-radius: 14px; }
+.result-summary { flex-direction: column; align-items: flex-start; gap: 8px; }
+.result-card h3 { font-size: 21px; }
+.result-distance { font-size: 24px; font-weight: 600; letter-spacing: -.5px; }
+.result-card .candidate-name { white-space: normal; }
+.route-detail { flex-direction: column; align-items: flex-start; gap: 12px; padding-top: 12px; border-top: 1px solid #244f3d18; }
+.navigation-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; background: #fffefb; border: 1px solid #cdd6c8; border-radius: 8px; font-size: 13px; text-decoration: none; }
+.confirm-button { width: 100%; }
+.map-panel { width: 100%; min-height: 0; }
+.map-container { flex: none; height: clamp(420px, calc(100dvh - 190px), 760px); min-height: 0; }
+
+.map-heading { gap: 10px; flex-wrap: wrap; }
+.map-actions { margin-left: auto; gap: 14px; }
+.map-panel:not(:has(.google-route:not([hidden]))) #adjust-location { display: none; }
+.map-caption { grid-column: 2; text-align: left; font-size: 12px; line-height: 1.8; }
+@media (max-width: 900px) {
+  .app-main { grid-template-columns: 260px minmax(0, 1fr); gap: 16px; padding-inline: 20px; }
+  .lookup-intro h2 { font-size: 23px; }
+  .result-card, .result-card[data-state=confirm] { padding: 16px; }
+}
+@media (max-width: 760px) {
+  .app-main { display: flex; gap: 14px; padding: 18px 14px; }
+  .lookup-sidebar { width: 100%; gap: 12px; padding-top: 0; }
+  .lookup-intro { gap: 5px; }
+  .lookup-intro > p:first-child { display: none; }
+  .lookup-intro h2 { font-size: 23px; }
+  .lookup-toolbar { flex-direction: row; gap: 8px; }
+  .locate-button { width: 52px; min-height: 52px; }
+  .suggestions-panel { width: calc(100% + 60px); }
+  .result-card { gap: 7px; padding: 16px; }
+  .result-summary { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+  .result-card h3 { font-size: 18px; }
+  .result-distance { font-size: 18px; }
+  .route-detail { flex-direction: row; align-items: center; justify-content: space-between; gap: 6px; padding-top: 8px; }
+  .navigation-link { font-size: 12px; padding: 6px 10px; }
+  .map-panel { flex: none; }
+  .map-container { height: 440px; height: clamp(340px, 55dvh, 520px); }
+  .map-caption { text-align: left; font-size: 11px; }
+}

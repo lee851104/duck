@@ -21,6 +21,16 @@
       </nav>
     </header>
     <main class="wrap app-main">
+      <div class="lookup-sidebar">
+        <div class="lookup-intro"><p>菜騎鴨・道路距離查詢</p><h2>外送有到我家嗎？</h2><p>輸入收貨位置，查看路線與外送條件。</p></div>
+        <section id="provider-test" class="provider-test" aria-label="測試地圖版本" hidden>
+          <p class="provider-test-title">地圖版本切換 <span>測試用</span></p>
+          <div class="provider-test-buttons" role="group" aria-label="路線來源">
+            <button type="button" data-route-mode="google" aria-pressed="true">Google 地圖</button>
+            <button type="button" data-route-mode="osrm" aria-pressed="false">OSM＋OSRM 免費版</button>
+          </div>
+          <p id="provider-test-note">Google 優先；達上限或無法使用時會顯示 OSRM 備援。切換後會重新查詢同一位置。</p>
+        </section>
       <section class="lookup-toolbar" aria-label="查詢收貨位置"><form id="search-form">
             <label class="sr-only" id="lookup-title" for="address">收貨地址或附近地標</label>
             <div class="search-field"><input id="address" name="address" type="search" maxlength="120" placeholder="輸入地址或地標，查詢外送" autocomplete="off" required aria-describedby="search-help" aria-controls="candidates" aria-expanded="false" /><button id="search-button" type="submit" aria-label="搜尋地址"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button></div>
@@ -29,12 +39,13 @@
           </form><button id="locate-button" class="locate-button" type="button" aria-label="使用目前位置"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/></svg><span>使用目前位置</span></button></section>
       <p id="search-status" class="status-message" role="status" aria-live="polite"></p>
       <div id="result" class="result-card" data-state="empty" role="status" aria-live="polite" aria-atomic="true"></div>
+      </div>
       <section class="map-panel" aria-label="外送範圍地圖">
         <div class="map-heading">
           <div id="route-provider" class="route-provider">選擇收貨位置</div>
-          <button id="reset-map" type="button">回到店家</button>
+          <div class="map-actions"><button id="adjust-location" type="button">調整位置</button><button id="reset-map" type="button">回到店家</button></div>
         </div>
-        <div class="map-container"><fieldset class="basemap-switch"><legend class="sr-only">切換底圖</legend><label><input type="radio" name="basemap" value="street" checked /><span>街道圖</span></label><label><input type="radio" name="basemap" value="photo" /><span>正射影像</span></label></fieldset><div id="map" aria-label="互動地圖：點選位置查詢；也可用方向鍵移動，再按 Enter 選擇中心" tabindex="0"></div><div id="google-route" class="google-route" hidden><img id="google-route-image" alt="Google Maps 汽車路線圖，S 為店家，D 為收貨位置" /><button id="adjust-location" type="button">調整收貨位置</button></div><div id="map-error" class="map-error" role="status" hidden>底圖暫時無法載入，請檢查網路或稍後再試。</div><div class="map-hint">點地圖，查詢道路距離</div></div>
+        <div class="map-container"><fieldset class="basemap-switch"><legend class="sr-only">切換底圖</legend><label><input type="radio" name="basemap" value="street" checked /><span>街道圖</span></label><label><input type="radio" name="basemap" value="photo" /><span>正射影像</span></label></fieldset><div id="map" aria-label="互動地圖：點選位置查詢；也可用方向鍵移動，再按 Enter 選擇中心" tabindex="0"></div><div id="google-route" class="google-route" hidden><div id="google-map" aria-label="Google 互動地圖，可拖曳縮放與點選收貨位置"></div></div><div id="map-error" class="map-error" role="status" hidden>底圖暫時無法載入，請檢查網路或稍後再試。</div><div class="map-hint">點地圖，查詢道路距離</div></div>
       </section>
       <p class="map-caption">汽車道路距離：5 公里內低消 300 元 · 5–10 公里請確認人手 · 超過 10 公里無法配送</p>
     </main>

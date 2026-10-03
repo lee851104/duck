@@ -37,25 +37,7 @@ export async function googleRoute(point, env, fetcher) {
   if (!finiteDistance(route?.distanceMeters) || !finiteDistance(duration)
       || typeof encoded !== 'string' || !encoded || encoded.length > 6000) throw new RouteError('no-route');
 
-  // Retrieve the Google map server-side, under the SAME reserved budget slot.
-  // No API key or reusable billable URL is sent to the browser. No disk/cache.
-  const params = new URLSearchParams({ size: '640x480', scale: '2', format: 'png', language: 'zh-TW',
-    key: env.GOOGLE_STATIC_MAPS_API_KEY,
-    path: `color:0x244f3dff|weight:5|enc:${encoded}` });
-  params.append('markers', `color:0x244f3d|label:S|${STORE.lat},${STORE.lng}`);
-  params.append('markers', `color:0xb76e35|label:D|${point.lat},${point.lng}`);
-  const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?${params}`;
-  if (mapUrl.length > 16384) throw new RouteError('no-route');
-  const mapResponse = await fetcher(mapUrl, { signal: AbortSignal.timeout(7000) });
-  if (!mapResponse.ok || !mapResponse.headers.get('content-type')?.startsWith('image/png')) {
-    throw new RouteError('provider-unavailable');
-  }
-  const image = Buffer.from(await mapResponse.arrayBuffer());
-  if (image.length < 8 || image.length > 2000000 || image.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') {
-    throw new RouteError('provider-unavailable');
-  }
-  return { provider: 'google', meters: route.distanceMeters, seconds: duration,
-    mapImage: `data:image/png;base64,${image.toString('base64')}` };
+  return { provider: 'google', meters: route.distanceMeters, seconds: duration, encodedPolyline: encoded };
 }
 
 export async function osrmRoute(point, env, fetcher) {
@@ -82,7 +64,7 @@ export function createRouter({ env = process.env, fetcher = fetch, quota = creat
   return async function route(destination, { osrmOnly = false } = {}) {
     const point = validateDestination(destination);
     let fallbackReason = 'not-configured';
-    if (!osrmOnly && env.GOOGLE_ROUTES_API_KEY && env.GOOGLE_STATIC_MAPS_API_KEY) {
+    if (!osrmOnly && env.GOOGLE_ROUTES_API_KEY) {
       let reserved = false;
       try { reserved = await quota.reserveGoogle(now()); fallbackReason = 'budget-limit'; }
       catch { fallbackReason = 'quota-unavailable'; }
@@ -94,9 +76,7 @@ export function createRouter({ env = process.env, fetcher = fetch, quota = creat
           console.warn('Google routing unavailable', {
             reason: error instanceof RouteError ? error.code : 'request-failed',
             routesKeyFormatValid: /^AIza[\w-]{35}$/.test(env.GOOGLE_ROUTES_API_KEY),
-            staticKeyFormatValid: /^AIza[\w-]{35}$/.test(env.GOOGLE_STATIC_MAPS_API_KEY),
             routesKeyMasked: /^[•●*]+$/.test(env.GOOGLE_ROUTES_API_KEY),
-            staticKeyMasked: /^[•●*]+$/.test(env.GOOGLE_STATIC_MAPS_API_KEY),
           });
         }
         // A failed/aborted call might still be billable. NEVER refund or retry it.

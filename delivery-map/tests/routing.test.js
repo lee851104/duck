@@ -12,31 +12,24 @@ const osrm = { code: 'Ok', routes: [{ distance: 6800, duration: 700,
   geometry: { type: 'LineString', coordinates: [[120.545, 24.274], [120.56, 24.27], [point.lng, point.lat]] } }],
   waypoints: [{ distance: 3 }, { distance: 9 }] };
 const asJson = value => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } });
-const png = () => new Response(Buffer.from('89504e470d0a1a0a00000000', 'hex'), { headers: { 'Content-Type': 'image/png' } });
-
-test('Google reservations precede both billable calls; Essentials mode and no exposed keys', async () => {
+test('Google route reserves before one Essentials call; no static map or server key returned', async () => {
   const events = [];
   const route = createRouter({ env, quota: { ...quota, reserveGoogle: async () => { events.push('reserve'); return true; } },
     fetcher: async (url, init) => {
-      if (url.includes('computeRoutes')) {
-        events.push('routes');
-        const body = JSON.parse(init.body);
-        assert.equal(body.travelMode, 'DRIVE'); assert.equal(body.routingPreference, 'TRAFFIC_UNAWARE');
-        assert.equal(body.computeAlternativeRoutes, false);
-        assert.equal(init.headers['X-Goog-Api-Key'], env.GOOGLE_ROUTES_API_KEY);
-        return asJson(google);
-      }
-      events.push('map');
-      assert.equal(new URL(url).searchParams.get('path'), 'color:0x244f3dff|weight:5|enc:test-polyline');
-      return png();
+      assert.ok(url.includes('computeRoutes')); events.push('routes');
+      const body = JSON.parse(init.body);
+      assert.equal(body.travelMode, 'DRIVE'); assert.equal(body.routingPreference, 'TRAFFIC_UNAWARE');
+      assert.equal(body.computeAlternativeRoutes, false);
+      assert.equal(init.headers['X-Goog-Api-Key'], env.GOOGLE_ROUTES_API_KEY);
+      return asJson(google);
     } });
   const result = await route(point);
-  assert.deepEqual(events, ['reserve', 'routes', 'map']);
+  assert.deepEqual(events, ['reserve', 'routes']);
   assert.equal(result.provider, 'google'); assert.equal(result.meters, 5200);
-  assert.ok(result.mapImage.startsWith('data:image/png;base64,'));
+  assert.equal(result.encodedPolyline, 'test-polyline');
+  assert.equal(result.mapImage, undefined);
   assert.ok(!JSON.stringify(result).includes('test-routes'));
   assert.ok(!JSON.stringify(result).includes('test-static'));
-  assert.equal(result.coordinates, undefined);
 });
 
 for (const [name, reserve] of [['budget exhausted', async () => false],
@@ -73,11 +66,12 @@ for (const status of [403, 429, 500]) {
   });
 }
 
-test('Google map failure discards Google distance and returns independent OSRM route', async () => {
-  const route = createRouter({ env, quota, fetcher: async url => url.includes('computeRoutes') ? asJson(google)
-    : url.includes('staticmap') ? new Response('denied', { status: 403 }) : asJson(osrm) });
+test('invalid Google geometry falls back to an independent OSRM route', async () => {
+  const route = createRouter({ env, quota, fetcher: async url => url.includes('computeRoutes')
+    ? asJson({ routes: [{ ...google.routes[0], polyline: {} }] }) : asJson(osrm) });
   const result = await route(point);
-  assert.equal(result.provider, 'osrm'); assert.equal(result.meters, 6800); assert.equal(result.mapImage, undefined);
+  assert.equal(result.provider, 'osrm'); assert.equal(result.meters, 6800);
+  assert.equal(result.encodedPolyline, undefined);
 });
 
 test('invalid, too-far and malformed destinations consume no quota or provider calls', async () => {

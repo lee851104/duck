@@ -49,6 +49,14 @@ export function createQuota(env, fetcher = fetch) {
   return {
     command,
     ledger: `${prefix}:google`,
+    mapsLedger: `${prefix}:dynamic-maps`,
+    async reserveGoogleMap(now) {
+      const { month, day } = billingPeriod(now);
+      const result = await command(['EVAL', RESERVE_GOOGLE, '1', `${prefix}:dynamic-maps`, month, day,
+        String(limit(env.GOOGLE_MAPS_MONTHLY_LIMIT, 9000, 9000)),
+        String(limit(env.GOOGLE_MAPS_DAILY_LIMIT, 250, 250))]);
+      return result === 1;
+    },
     async reserveGoogle(now) {
       const { month, day } = billingPeriod(now);
       const result = await command(['EVAL', RESERVE_GOOGLE, '1', `${prefix}:google`, month, day,

@@ -3,8 +3,22 @@ import 'leaflet/dist/leaflet.css';
 import './style.css';
 import './workspace.css';
 import { STORE, deliveryRule, distanceLabel, featureToCandidate, searchQueries, navigationUrl } from './rules.js';
+import { createGoogleMapView } from './google-map.js';
 
 const $ = id => document.getElementById(id);
+// Temporary comparison UI: set false to restore automatic Google-first mode.
+const ENABLE_PROVIDER_TEST_SWITCH = true;
+let routeMode = 'google';
+$('provider-test').hidden = !ENABLE_PROVIDER_TEST_SWITCH;
+document.querySelectorAll('[data-route-mode]').forEach(button => button.addEventListener('click', () => {
+  if (!ENABLE_PROVIDER_TEST_SWITCH || button.dataset.routeMode === routeMode) return;
+  routeMode = button.dataset.routeMode;
+  document.querySelectorAll('[data-route-mode]').forEach(item => item.setAttribute('aria-pressed', String(item.dataset.routeMode === routeMode)));
+  $('provider-test-note').textContent = routeMode === 'osrm'
+    ? '只使用 OpenStreetMap＋OSRM，不呼叫 Google API。切換後會重新查詢同一位置。'
+    : 'Google 優先；達上限或無法使用時會顯示 OSRM 備援。切換後會重新查詢同一位置。';
+  if (selected && result.dataset.state !== 'confirm' && result.dataset.state !== 'empty') showResult(selected);
+}));
 const result = $('result');
 const emptyResult = result.innerHTML;
 const cache = new Map();
@@ -21,6 +35,9 @@ let composing = false;
 let abortRoute;
 let routeGeneration = 0;
 const routePadding = { paddingTopLeft: [32, 100], paddingBottomRight: [32, 40], maxZoom: 16 };
+const googleView = createGoogleMapView($('google-map'), point => showResult(point), () => {
+  if (selected && !$('google-route').hidden) showResult(selected, { osrmOnly: true });
+});
 
 const map = L.map('map', { scrollWheelZoom: true, zoomControl: false, doubleClickZoom: false, zoomSnap: 0.25, zoomDelta: 0.5 }).setView([STORE.lat, STORE.lng], 12);
 L.control.zoom({ position: 'topright', zoomInTitle: '放大地圖', zoomOutTitle: '縮小地圖' }).addTo(map);
@@ -113,7 +130,7 @@ function cancelRoute() {
 
 function showSelectionMap() {
   $('google-route').hidden = true;
-  $('google-route-image').removeAttribute('src');
+  googleView.clear();
   $('map').hidden = false;
   document.querySelector('.basemap-switch').hidden = false;
   $('route-provider').textContent = '選擇收貨位置';
@@ -150,27 +167,41 @@ async function showResult(point, options = {}) {
   }
   const token = routeGeneration;
   const controller = new AbortController(); abortRoute = controller;
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 45000);
   result.dataset.state = 'loading'; result.setAttribute('aria-busy', 'true');
   result.innerHTML = '<div class="result-summary"><h3>正在查詢道路路線…</h3></div><p class="result-description">從菜騎鴨出發，計算汽車行駛距離。</p>';
   try {
+    let osrmOnly = routeMode === 'osrm' || options.osrmOnly === true;
+    let mapFailure;
+    if (!osrmOnly) {
+      $('google-route').hidden = false;
+      $('map').hidden = true;
+      document.querySelector('.basemap-switch').hidden = true;
+      $('map-error').hidden = true;
+      $('route-provider').textContent = '正在載入 Google 互動地圖…';
+      try { await googleView.ensure(); }
+      catch (error) { mapFailure = error.message; osrmOnly = true; }
+      if (token !== routeGeneration) return;
+      if (osrmOnly) showSelectionMap();
+    }
     const response = await fetch('/api/route', { method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat: point.lat, lng: point.lng, osrmOnly: options.osrmOnly === true }), signal: controller.signal });
+      body: JSON.stringify({ lat: point.lat, lng: point.lng, osrmOnly }), signal: controller.signal });
     const route = await response.json();
     if (!response.ok) throw new Error(route.error || 'provider-unavailable');
     if (token !== routeGeneration) return;
     const rule = deliveryRule(route.meters);
     if (route.provider === 'google') {
       // Google content is shown only on its own map, never over Leaflet/OSM.
-      if (typeof route.mapImage !== 'string' || !route.mapImage.startsWith('data:image/png;base64,')) throw new Error('provider-unavailable');
-      $('google-route-image').src = route.mapImage;
       $('google-route').hidden = false;
       $('map').hidden = true;
       document.querySelector('.basemap-switch').hidden = true;
       $('map-error').hidden = true;
-      $('route-provider').textContent = 'Google Maps · 汽車路線';
+      try { googleView.draw(route.encodedPolyline); }
+      catch { return showResult(point, { osrmOnly: true }); }
+      $('route-provider').textContent = 'Google Maps · 可拖曳、縮放及點選位置';
     } else if (route.provider === 'osrm') {
+      showSelectionMap();
       if (!Array.isArray(route.coordinates) || route.coordinates.length < 2) throw new Error('provider-unavailable');
       connector = L.polyline(route.coordinates, { color: activeTiles === photoTiles ? '#ffffff' : '#244f3d',
         weight: 5, opacity: .9, interactive: false }).addTo(map);
@@ -183,7 +214,10 @@ async function showResult(point, options = {}) {
     result.dataset.state = rule.zone;
     result.innerHTML = `<div class="result-summary"><h3>${titles[rule.zone]}</h3><span class="result-distance">道路 ${distanceLabel(route.meters)} 公里</span></div><p class="result-description">${descriptions[rule.zone]}</p><div class="route-detail"><span class="route-source"></span><a class="navigation-link" target="_blank" rel="noopener noreferrer">Google 導航 ↗</a></div>`;
     result.querySelector('.route-source').textContent = route.provider === 'google' ? 'Google Maps · 店家 → 收貨位置'
-      : 'OpenStreetMap / OSRM 備援路線，可能與 Google 導航不同';
+      : routeMode === 'osrm' ? 'OpenStreetMap / OSRM · 免費版道路路線'
+        : mapFailure === 'map-budget-limit' ? 'Google 地圖已達本站載入上限，改用 OSRM 備援路線'
+          : route.fallbackReason === 'budget-limit' ? 'Google 路線已達本站用量上限，改用 OSRM 備援路線'
+          : 'Google 暫時無法使用，改用 OpenStreetMap / OSRM 備援路線';
     result.querySelector('.navigation-link').href = navigationUrl(point);
     if (options.accuracy || route.snappedMeters > 30) {
       const note = document.createElement('p'); note.className = 'accuracy-note';
@@ -210,9 +244,6 @@ $('adjust-location').addEventListener('click', () => {
   cancelRoute(); showSelectionMap();
   result.dataset.state = 'empty'; result.innerHTML = emptyResult;
   document.querySelector('.map-hint').hidden = false;
-});
-$('google-route-image').addEventListener('error', () => {
-  if (selected && !$('google-route').hidden) showResult(selected, { osrmOnly: true });
 });
 
 map.on('click', event => showResult(event.latlng, { fit: false }));
